@@ -7,8 +7,11 @@ import Observation
 /// Runs the camera and the gaze engine, and moves focus when the engine decides to and the
 /// user isn't typing.
 ///
-/// The camera runs only in one of three modes: following the user, calibrating, or
-/// enrolling face lock. Otherwise it is off.
+/// The camera runs only in one of four modes: following the user, calibrating, enrolling
+/// face lock, or calibrating hand gestures. Otherwise it is off.
+///
+/// While following with hand gestures on, it also watches for a grab and a drop, and
+/// reports each with the display the user faced when it began.
 @MainActor
 @Observable
 final class GazeController {
@@ -17,6 +20,17 @@ final class GazeController {
         case following
         case calibrating
         case enrolling
+        case calibratingHands
+    }
+
+    /// A hand gesture, with the display it's meant for.
+    enum Gesture: Equatable {
+        /// The user closed their hand while facing `display`.
+        case grabbed(Display.ID)
+        /// The user opened their hand again while facing `display`.
+        case dropped(Display.ID)
+        /// The grab was held too long, the hand went out of view, or gestures stopped.
+        case cancelled
     }
 
     private(set) var mode: Mode = .idle
@@ -36,7 +50,13 @@ final class GazeController {
         var brightness = 0.0
         var matchScore: Double?
         var framesPerSecond = 0.0
+        /// How open the nearest hand is, from 0 (fist) to 1 (open), while gestures are on.
+        var handOpenness: Double?
+        var isHoldingGrab = false
     }
+
+    /// Told about each hand gesture while following.
+    @ObservationIgnored var onGesture: ((Gesture) -> Void)?
 
     @ObservationIgnored let camera = CameraFeed()
     @ObservationIgnored private let focus: FocusController
@@ -47,6 +67,10 @@ final class GazeController {
     @ObservationIgnored private var displays: [Display] = []
     @ObservationIgnored private var pointerDisplay: Display.ID?
     @ObservationIgnored private var frameTimes: [TimeInterval] = []
+    /// Watches for grabs and drops while gestures are on.
+    @ObservationIgnored private var grab: GrabDetector?
+    /// Where the user looked lately, so a gesture goes where they faced when it began.
+    @ObservationIgnored private var faced = DisplayHistory()
     /// What following was last started with, so an unchanged request doesn't restart it.
     @ObservationIgnored private var followed: (displays: [Display], calibration: Calibration, verifier: FaceTemplate?)?
     /// Bumped on every start and stop, so a camera start that finishes late can tell it's
@@ -115,11 +139,44 @@ final class GazeController {
         start(.enrolling, engine: nil, handler: handler)
     }
 
+    /// Reports every frame, with the nearest hand, to `handler`.
+    func calibrateHands(handler: @escaping (Frame) -> Void) {
+        start(.calibratingHands, engine: nil) { frame, _ in handler(frame) }
+    }
+
+    /// Turns hand gestures on with `calibration`, or off with `nil`. Turning them off
+    /// cancels a grab in progress.
+    func setGestures(_ calibration: HandCalibration?) {
+        if let calibration {
+            if grab == nil {
+                grab = GrabDetector(calibration: calibration)
+            } else {
+                grab?.calibration = calibration
+            }
+        } else if let current = grab {
+            grab = nil
+            faced.removeAll()
+            if current.phase == .holding {
+                onGesture?(.cancelled)
+            }
+        }
+        updateWantsHands()
+    }
+
+    private func updateWantsHands() {
+        camera.setWantsHands(mode == .calibratingHands || (mode == .following && grab != nil))
+    }
+
     /// Turns the camera off.
     func stop() {
         generation += 1
         followed = nil
         guard mode != .idle else { return }
+        if grab?.phase == .holding {
+            onGesture?(.cancelled)
+        }
+        grab?.reset()
+        faced.removeAll()
         camera.stop()
         typing.stop()
         mode = .idle
@@ -146,6 +203,7 @@ final class GazeController {
         output = nil
         cameraFailure = nil
         camera.setWantsSignatures(mode == .enrolling || engine?.needsSignatures(at: 0) == true)
+        updateWantsHands()
 
         Task {
             do {
@@ -200,9 +258,35 @@ final class GazeController {
         if mode == .following, let output {
             followPointer(output)
             moveFocus(output)
+            watchHand(in: frame, output: output)
         }
 
         frameHandler?(frame, output)
+    }
+
+    /// Turns a grab or drop into a ``Gesture`` for the display the user faced as it began.
+    private func watchHand(in frame: Frame, output: GazeEngine.Output) {
+        guard grab != nil else { return }
+        faced.record(output.facingDisplay ?? output.focusedDisplay, at: frame.timestamp)
+        guard let event = grab?.update(frame.hand, at: frame.timestamp) else { return }
+
+        let gesture: Gesture? =
+            switch event {
+            case .grabbed(let startedAt):
+                (faced.display(at: startedAt) ?? focusedDisplay).map(Gesture.grabbed)
+            case .dropped(let startedAt):
+                (faced.display(at: startedAt) ?? focusedDisplay).map(Gesture.dropped)
+            case .cancelled:
+                .cancelled
+            }
+        if let gesture {
+            onGesture?(gesture)
+        } else if case .grabbed = event {
+            // No display known for a grab: nothing can be taken, so don't hold one.
+            grab?.reset()
+        } else {
+            onGesture?(.cancelled)
+        }
     }
 
     /// Keeps the engine in step when the user moves the pointer to another display by
@@ -287,7 +371,9 @@ final class GazeController {
             rawPose: nearest?.pose,
             brightness: frame.brightness,
             matchScore: score,
-            framesPerSecond: Double(frameTimes.count)
+            framesPerSecond: Double(frameTimes.count),
+            handOpenness: grab?.openness,
+            isHoldingGrab: grab?.phase == .holding
         )
     }
 

@@ -84,6 +84,37 @@ final class AppModel {
         }
     }
 
+    /// Whether hand gestures take and drop screenshots. Turning them on asks for Screen
+    /// Recording permission if Glazer doesn't have it yet.
+    var gesturesEnabled: Bool {
+        didSet {
+            preferences.gesturesEnabled = gesturesEnabled
+            if gesturesEnabled, !hasScreenCaptureAccess {
+                ScreenCaptureAccess.request()
+            }
+            refresh()
+        }
+    }
+
+    /// The user's open hand and fist, as the camera sees them.
+    private(set) var handCalibration: HandCalibration?
+
+    /// Why gestures that are on can't work yet, or `nil` when they can or are off.
+    var gestureIssue: GestureIssue? {
+        guard gesturesEnabled else { return nil }
+        if !switchingMethod.usesCamera { return .needsCamera }
+        if handCalibration == nil { return .needsHandCalibration }
+        if !hasScreenCaptureAccess { return .needsScreenRecording }
+        return nil
+    }
+
+    enum GestureIssue: Equatable {
+        /// Gestures are seen by the camera, which isn't used when switching by shortcut only.
+        case needsCamera
+        case needsHandCalibration
+        case needsScreenRecording
+    }
+
     /// Whether Glazer opens at login. Reads back what macOS actually did, so the switch
     /// never shows on when registering failed.
     var launchesAtLogin: Bool {
@@ -105,6 +136,7 @@ final class AppModel {
 
     private(set) var cameraAccess = CameraAccess.current
     private(set) var hasAccessibilityAccess = AccessibilityAccess.isGranted
+    private(set) var hasScreenCaptureAccess = ScreenCaptureAccess.isGranted
 
     // MARK: Face lock
 
@@ -150,6 +182,7 @@ final class AppModel {
     @ObservationIgnored private var session: SessionMonitor?
     @ObservationIgnored private var permissionTimer: Timer?
     @ObservationIgnored private lazy var calibrationCoordinator = CalibrationCoordinator(gaze: gaze)
+    @ObservationIgnored private let grabs = GrabController()
     private var isCalibrating = false
 
     init(preferences: Preferences = Preferences(), vault: FaceVault = FaceVault()) {
@@ -164,11 +197,15 @@ final class AppModel {
         switchDelay = preferences.switchDelay
         hasCompletedSetup = preferences.hasCompletedSetup
         calibration = preferences.calibration
+        gesturesEnabled = preferences.gesturesEnabled
+        handCalibration = preferences.handCalibration
 
         // Only whether a template exists: that never makes macOS ask for the Keychain.
         faceLock = vault.hasTemplate ? .stored : .off
+        gaze.onGesture = { [weak self] gesture in self?.grabs.handle(gesture) }
         registerToggleShortcut()
         observeDisplays()
+        observeFacedDisplay()
         session = SessionMonitor { [weak self] in self?.refresh() }
         watchPermissions()
         refresh()
@@ -187,7 +224,7 @@ final class AppModel {
     // MARK: Condition
 
     var condition: Condition {
-        if isCalibrating { return .calibrating }
+        if isCalibrating || gaze.mode == .calibratingHands { return .calibrating }
         if gaze.mode == .enrolling { return .enrollingFace }
         if !isEnabled { return .off }
         if let attention { return .attention(attention) }
@@ -244,10 +281,15 @@ final class AppModel {
     func refreshPermissions() {
         let camera = CameraAccess.current
         let accessibility = AccessibilityAccess.isGranted
-        guard camera != cameraAccess || accessibility != hasAccessibilityAccess else { return }
+        let screenCapture = ScreenCaptureAccess.isGranted
+        guard
+            camera != cameraAccess || accessibility != hasAccessibilityAccess
+                || screenCapture != hasScreenCaptureAccess
+        else { return }
         let gainedAccessibility = accessibility && !hasAccessibilityAccess
         cameraAccess = camera
         hasAccessibilityAccess = accessibility
+        hasScreenCaptureAccess = screenCapture
         refresh()
         if gainedAccessibility {
             gaze.restartTypingMonitor()
@@ -338,6 +380,27 @@ final class AppModel {
         return true
     }
 
+    // MARK: Hand gestures
+
+    /// Starts the camera for hand calibration. Call ``finishHandCalibration(with:)`` or
+    /// ``cancelHandCalibration()`` to end it.
+    func beginHandCalibration(onFrame: @escaping (Frame) -> Void) {
+        gaze.stop()
+        gaze.calibrateHands(handler: onFrame)
+    }
+
+    func finishHandCalibration(with calibration: HandCalibration) {
+        gaze.stop()
+        handCalibration = calibration
+        preferences.handCalibration = calibration
+        refresh()
+    }
+
+    func cancelHandCalibration() {
+        gaze.stop()
+        refresh()
+    }
+
     // MARK: Running
 
     private var verifier: IdentityVerifier? {
@@ -379,7 +442,7 @@ final class AppModel {
     /// displays, the screen locking or waking, a camera being connected. Each run also
     /// retries a camera that failed before.
     private func refresh() {
-        guard !isCalibrating, gaze.mode != .enrolling else { return }
+        guard !isCalibrating, gaze.mode != .enrolling, gaze.mode != .calibratingHands else { return }
         updateShortcut()
         gaze.clearCameraFailure()
 
@@ -393,6 +456,7 @@ final class AppModel {
         if followsWithCamera, calibration != nil {
             loadFaceTemplateIfNeeded()
         }
+        gaze.setGestures(gestureIssue == nil && gesturesEnabled ? handCalibration : nil)
         if followsWithCamera, attention == nil, let calibration {
             gaze.follow(displays: displays, calibration: calibration, verifier: verifier, switchDelay: switchDelay)
         } else {
@@ -434,6 +498,19 @@ final class AppModel {
                 guard let self else { return }
                 self.refresh()
                 self.observeDisplays()
+            }
+        }
+    }
+
+    /// Keeps a held screenshot's thumbnail on the display the user faces.
+    private func observeFacedDisplay() {
+        withObservationTracking {
+            _ = gaze.focusedDisplay
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                grabs.facingChanged(to: gaze.focusedDisplay)
+                observeFacedDisplay()
             }
         }
     }

@@ -14,6 +14,8 @@ struct SettingsView: View {
                 .tabItem { Label("Displays", systemImage: "display.2") }
             FaceLockSettings(model: model)
                 .tabItem { Label("Face Lock", systemImage: "faceid") }
+            GestureSettings(model: model)
+                .tabItem { Label("Gestures", systemImage: "hand.raised") }
             PrivacySettings()
                 .tabItem { Label("Privacy", systemImage: "hand.raised") }
             DiagnosticsSettings(model: model)
@@ -301,6 +303,82 @@ private struct FaceLockSettings: View {
     }
 }
 
+// MARK: - Gestures
+
+private struct GestureSettings: View {
+    @Bindable var model: AppModel
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle(isOn: $model.gesturesEnabled) {
+                    HStack(spacing: 6) {
+                        Text("Grab screenshots with your hand")
+                        ExperimentalBadge()
+                    }
+                }
+                if model.gesturesEnabled {
+                    LabeledContent("Your hand") {
+                        HStack(spacing: 8) {
+                            Text(model.handCalibration == nil ? "Not calibrated" : "Calibrated")
+                                .foregroundStyle(.secondary)
+                            Button(model.handCalibration == nil ? "Calibrate…" : "Recalibrate…") {
+                                openWindow(id: WindowID.handCalibration)
+                                NSApp.activate()
+                            }
+                            .disabled(model.cameraAccess != .granted)
+                        }
+                    }
+                    PermissionRow(
+                        title: "Screen Recording",
+                        isGranted: model.hasScreenCaptureAccess,
+                        action: {
+                            ScreenCaptureAccess.request()
+                            SystemSettings.open(.screenRecording)
+                        }
+                    )
+                }
+            } footer: {
+                Text(footer)
+            }
+
+            Section("How it works") {
+                Fact(
+                    symbol: "hand.raised.fingers.spread",
+                    text: "Facing a display, open your hand, then close it into a fist. Glazer takes a "
+                        + "screenshot of that display, saves it with your screenshots and copies it.")
+                Fact(
+                    symbol: "arrow.left.and.right",
+                    text: "Keep the fist closed and turn to another display. The screenshot follows you.")
+                Fact(
+                    symbol: "doc.on.clipboard",
+                    text: "Open your hand. If the pointer is on a text box or message field, Glazer pastes "
+                        + "the screenshot there. Otherwise it opens the screenshot on that display.")
+            }
+        }
+        .formStyle(.grouped)
+        .frame(height: 430)
+        .animation(.smooth(duration: 0.25), value: model.gesturesEnabled)
+    }
+
+    private var footer: String {
+        switch model.gestureIssue {
+        case .needsCamera:
+            "Gestures are seen by the camera. Choose Camera or Both under General › Switch displays by."
+        case .needsHandCalibration:
+            "Calibrate your hand to start. It takes about 15 seconds."
+        case .needsScreenRecording:
+            "Allow Screen Recording so Glazer can take the screenshot. "
+                + "macOS may ask you to quit and reopen Glazer afterwards."
+        case nil:
+            model.gesturesEnabled
+                ? "On. Glazer watches for your hand while it follows you."
+                : "Uses the camera Glazer already runs. Only screenshots you grab are saved."
+        }
+    }
+}
+
 // MARK: - Privacy
 
 private struct PrivacySettings: View {
@@ -310,11 +388,15 @@ private struct PrivacySettings: View {
                 Fact(symbol: "video", text: "Uses the camera only while it's on, and the camera light shows it.")
                 Fact(symbol: "cpu", text: "Analyses each frame on this Mac with Apple's Vision framework.")
                 Fact(symbol: "trash", text: "Discards every frame immediately after analysis.")
+                Fact(
+                    symbol: "hand.raised",
+                    text: "With hand gestures on, takes a screenshot only when you grab one, "
+                        + "and saves it with your own screenshots.")
             }
             Section("What Glazer never does") {
                 Fact(symbol: "record.circle", text: "Record, save or upload video or photos.")
                 Fact(symbol: "network.slash", text: "Connect to the internet. No analytics, no tracking, no updates.")
-                Fact(symbol: "eye.slash", text: "Read window titles or what's on your screen.")
+                Fact(symbol: "eye.slash", text: "Read window titles, or what's on your screen unless you grab it.")
             }
             Section {
                 Link(
@@ -368,6 +450,13 @@ private struct DiagnosticsSettings: View {
                     Reading("Head yaw", value: degrees(output?.pose?.yaw ?? diagnostics.rawPose?.yaw))
                     Reading("Head pitch", value: degrees(output?.pose?.pitch ?? diagnostics.rawPose?.pitch))
                     Reading("Display in focus", value: displayName(output?.focusedDisplay))
+                    if model.gesturesEnabled, model.gestureIssue == nil {
+                        Reading(
+                            "Hand openness",
+                            value: diagnostics.handOpenness.map { $0.formatted(.percent.precision(.fractionLength(0))) }
+                                ?? "No hand")
+                        Reading("Holding a grab", value: diagnostics.isHoldingGrab ? "Yes" : "No")
+                    }
                 }
                 Section("Camera") {
                     Reading(

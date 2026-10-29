@@ -29,6 +29,13 @@ struct GlazerApp: App {
         .windowResizability(.contentSize)
         .restorationBehavior(.disabled)
 
+        Window("Hand Gestures", id: WindowID.handCalibration) {
+            HandCalibrationView(model: model)
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
+
         Settings {
             SettingsView(model: model)
         }
@@ -38,6 +45,7 @@ struct GlazerApp: App {
 enum WindowID {
     static let setup = "setup"
     static let faceLock = "face-lock"
+    static let handCalibration = "hand-calibration"
 }
 
 private final class AppDelegate: NSObject, NSApplicationDelegate {
