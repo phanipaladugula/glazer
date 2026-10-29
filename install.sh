@@ -366,8 +366,8 @@ quit_glazer() {
     pgrep -x Glazer >/dev/null 2>&1 || return 0
     osascript -e "tell application id \"$bundle_id\" to quit" >/dev/null 2>&1 || true
     pkill -x Glazer 2>/dev/null || true
-    local attempt
-    for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25; do
+    # Up to 25 checks, 0.2 seconds apart.
+    for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25; do
         pgrep -x Glazer >/dev/null 2>&1 || return 0
         sleep 0.2
     done
