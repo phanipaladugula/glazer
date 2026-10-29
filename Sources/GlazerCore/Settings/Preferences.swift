@@ -19,6 +19,8 @@ public final class Preferences {
         static let hasCompletedSetup = "hasCompletedSetup"
         static let switchDelay = "switchDelay"
         static let calibration = "calibration"
+        static let switchingMethod = "switchingMethod"
+        static let switchKey = "switchKey"
     }
 
     /// The range offered for ``switchDelay``, in seconds.
@@ -61,5 +63,17 @@ public final class Preferences {
         set {
             store.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: Key.calibration)
         }
+    }
+
+    /// How the user moves between displays. Defaults to following their head.
+    public var switchingMethod: SwitchingMethod {
+        get { (store.object(forKey: Key.switchingMethod) as? String).flatMap(SwitchingMethod.init) ?? .camera }
+        set { store.set(newValue.rawValue, forKey: Key.switchingMethod) }
+    }
+
+    /// The key to double-press to switch displays. Defaults to fn.
+    public var switchKey: SwitchKey {
+        get { (store.object(forKey: Key.switchKey) as? String).flatMap(SwitchKey.init) ?? .function }
+        set { store.set(newValue.rawValue, forKey: Key.switchKey) }
     }
 }
