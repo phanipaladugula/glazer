@@ -49,6 +49,7 @@ else
     cp "$(swift build --configuration "$configuration" --show-bin-path)/Glazer" "$app/Contents/MacOS/Glazer"
 fi
 
+cp Resources/Glazer.icns "$app/Contents/Resources/Glazer.icns"
 sed -e "s/\$(VERSION)/${version}/" -e "s/\$(BUILD)/${build}/" \
     Resources/Info.plist > "$app/Contents/Info.plist"
 plutil -lint -s "$app/Contents/Info.plist"
