@@ -31,6 +31,19 @@ readonly installer="$GLAZER_ROOT/install.sh"
 readonly pty_run="$GLAZER_ROOT/Tests/Install/pty_run.py"
 make_workspace
 
+# The installer requires Glazer's release certificate. A package built without it, such as
+# in pull request CI, is signed ad hoc: those tests install it with the certificate check
+# off, and one test checks it's rejected with the check on.
+pinned_signer=$(sed -n 's/^readonly expected_signer="\${GLAZER_EXPECTED_SIGNER-\([0-9A-F]*\)}"$/\1/p' "$installer")
+[[ -n "$pinned_signer" ]] || die "Couldn't find the pinned signer in install.sh." "$EX_SOFTWARE"
+ditto -x -k "$package/Glazer.zip" "$workspace/signer-check"
+if codesign --verify -R="certificate leaf = H\"$pinned_signer\"" "$workspace/signer-check/Glazer.app" 2>/dev/null; then
+    signed_for_release=true
+else
+    signed_for_release=false
+    export GLAZER_EXPECTED_SIGNER=""
+fi
+
 passed=0
 failed=0
 check() {
@@ -103,6 +116,17 @@ codesign --force --sign - "$impostor/Glazer.app" 2>/dev/null
 check "an app signed as another bundle is rejected" fails install_from "$impostor" "$workspace/impostor-out"
 check "...with the signature error" output_contains "isn't signed as Glazer"
 check "...and nothing is installed" not_installed "$workspace/impostor-out"
+
+if ! $signed_for_release; then
+    # Installs with the real certificate check, as people get it.
+    install_with_pin() {
+        env -u GLAZER_EXPECTED_SIGNER GLAZER_RELEASE_URL="file://$package" GLAZER_INSTALL_DIR="$1" \
+            NO_COLOR=1 /bin/bash "$installer" --no-open >"$workspace/out.txt" 2>&1
+    }
+    check "a build not signed with Glazer's certificate is rejected" fails install_with_pin "$workspace/unsigned-out"
+    check "...with the signature error" output_contains "isn't signed as Glazer"
+    check "...and nothing is installed" not_installed "$workspace/unsigned-out"
+fi
 
 check "a missing release fails clearly" fails install_from "$workspace/no-such-release" "$workspace/missing-out"
 check "...saying it couldn't download" output_contains "Couldn't"
