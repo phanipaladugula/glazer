@@ -1,28 +1,57 @@
 # Architecture
 
-Glazer is a Swift package with three modules. Each depends only on the ones below it.
+Glazer is a Swift package with three modules. Each one depends only on the modules below it.
 
 ```
-GlazerApp      Menu bar UI and app lifecycle (SwiftUI)
+GlazerApp      Menu bar UI, windows, overlays and app state (SwiftUI, AppKit)
    │
-GlazerSystem   Adapters over macOS APIs: displays, hot keys, later camera and focus
+GlazerSystem   Thin adapters over macOS: camera, Vision, Keychain, focus, displays
    │
-GlazerCore     Pure logic and value types. No AppKit, no hardware, fully unit-tested
+GlazerCore     Pure decision logic and value types. No AppKit, no hardware
 ```
 
-## Why this split
+## Principles
 
-The hard parts of Glazer are decisions: which face is the user, which display that face
-is turned to, and when a glance becomes a switch. Those decisions live in `GlazerCore` as
-plain functions over plain values, so they can be tested with recorded or invented data
-and never need a camera, a second display or a person sitting in front of the Mac.
+- **Decisions are pure.** The hard parts of Glazer are decisions: which face is the user,
+  which display they face, and when a glance becomes a switch. These decisions live in
+  `GlazerCore` as plain values with no clock, camera or UI, so every one of them is
+  unit-tested with invented frames.
+- **Adapters are thin.** `GlazerSystem` turns macOS into those values, and turns
+  decisions back into actions. Each adapter does one job with little logic, so there is
+  little in it to get wrong.
+- **Everything stays on the Mac.** Nothing in the package imports networking APIs. Camera
+  frames are analysed and dropped, and the face template lives only in the Keychain.
+- **No third-party dependencies.** Only Apple frameworks, so the whole app can be audited
+  ([ADR 0003](adr/0003-no-third-party-dependencies.md)).
 
-`GlazerSystem` turns macOS into those values (`NSScreen` into `Display`, camera frames
-into head poses) and turns decisions back into actions (moving the pointer, focusing a
-window). Each adapter stays thin, so there is little in it that can be wrong.
+## The pipeline
 
-`GlazerApp` owns state and draws the UI. Views read from `AppModel` and never call
-macOS APIs directly.
+```
+ Camera ──▶ FrameAnalyzer ──▶ Frame ──▶ GazeEngine ─────────────────────────────▶ Output
+ (AVFoundation)  (Vision)      faces,     │                                   status, pose,
+                               pose,      ├─ UserTracker      who is the user   focused display,
+                               brightness ├─ HeadPoseFilter   steady angles     switch?
+                                          ├─ DisplayClassifier which display        │
+                                          └─ LightMeter        too dark?            ▼
+                                                                          FocusController
+                                                                          (pointer + window)
+```
+
+1. **CameraFeed** runs the camera at VGA and analyses at most 12 frames a second on a
+   background queue.
+2. **FrameAnalyzer** uses Vision to find faces, each face's yaw and pitch, and the frame's
+   brightness. With face lock, it also computes a signature for the nearest three faces,
+   but only when the tracker asks for one.
+3. **UserTracker** picks the user: the nearest qualifying face, which is then followed by
+   position. With face lock, a face must also match the enrolled template, and it is
+   checked again every two seconds.
+4. **HeadPoseFilter** smooths the angles with a One Euro filter: steady when still,
+   responsive on a turn.
+5. **DisplayClassifier** finds the nearest calibrated display. It switches only when that
+   display is clearly nearer than the current one (by a margin) for long enough (the
+   dwell), and it ignores poses far from every display.
+6. **FocusController** focuses the frontmost window on the target display and returns the
+   pointer to where it was there.
 
 ## Modules
 
@@ -30,42 +59,74 @@ macOS APIs directly.
 
 | Area | Contents |
 |---|---|
-| `Display/` | `Display`, `DisplayLayout` (fits the arrangement into a drawing area), lookup by point |
+| `Vision/` | `HeadPose`, `Frame`, `DetectedFace` |
+| `Tracking/` | `UserTracker`, `OneEuroFilter`, `HeadPoseFilter`, `LightMeter` |
+| `Calibration/` | `Calibration`, `CalibrationRecorder`, `DisplayClassifier` |
+| `Identity/` | `FaceSignature`, `FaceTemplate` (with its learned threshold), `IdentityVerifier`, `FaceEnrollment` |
+| `Engine/` | `GazeEngine`, which ties the pipeline together |
+| `Display/` | `Display`, `DisplayLayout`, lookup by point |
+| `Settings/` | `Preferences`: on/off, setup state, switch delay, calibration |
 | `Models/` | `KeyboardShortcut` |
-| `Settings/` | `Preferences` over a `KeyValueStore` |
 
 ### GlazerSystem
 
 | Area | Contents |
 |---|---|
-| `Display/` | `DisplayMonitor`: connected displays, and the display under the pointer |
-| `HotKey/` | `HotKey`: a system-wide shortcut via Carbon, which needs no Accessibility permission |
+| `Camera/` | `CameraFeed`, `CameraAccess` |
+| `Vision/` | `FrameAnalyzer` |
+| `Security/` | `FaceVault` (Keychain), `OwnerAuthentication` (Touch ID or password) |
+| `Focus/` | `FocusController`, `AccessibilityAccess` |
+| `Display/` | `DisplayMonitor` |
+| `HotKey/` | `HotKey`, a global shortcut through Carbon |
+| `Login/` | `LaunchAtLogin` |
+| `Support/` | `SystemSettings`, which opens Privacy & Security panes |
 
 ### GlazerApp
 
-| File | Role |
+| Area | Role |
 |---|---|
-| `GlazerApp.swift` | Entry point. A `MenuBarExtra`, and no Dock icon |
-| `AppModel.swift` | The on/off state, preferences and the toggle shortcut |
-| `Views/` | The panel. See [the design spec](design/menu-bar.md) |
+| `AppModel.swift` | App state. Decides when the camera runs, and owns permissions, calibration and face lock |
+| `Gaze/` | `GazeController`: runs the camera and the engine, and moves focus |
+| `Calibration/` | Full-screen overlays and the calibration session |
+| `FaceLock/` | Face lock setup, with a live camera preview |
+| `Setup/` | The first-run setup window |
+| `Settings/` | General, Displays, Face Lock, Privacy and Diagnostics tabs |
+| `Views/` | Menu bar icon, panel, display map, and `ConditionPresentation` (every state's copy and icon) |
 
-## The pipeline (planned)
+The interface follows the [design spec](design/README.md).
 
-These pieces arrive over the next milestones:
+## When the camera runs
 
-```
-Camera ─frames─▶ FaceDetector ─faces─▶ UserTracker ─pose─▶ DisplayClassifier ─display─▶ FocusController
-(System)         (System, Vision)      (Core)              (Core)                        (System)
-```
+The camera is on only in three modes, all owned by `GazeController`:
 
-- **UserTracker** picks the user from all faces in the frame: the largest face, followed
-  from frame to frame, and ignored if it's much smaller than the calibrated size.
-- **DisplayClassifier** maps head yaw and pitch to the nearest calibrated display, with
-  hysteresis and a dwell time so a quick glance doesn't steal focus.
-- **FocusController** remembers the last focused window on each display and restores it.
+| Mode | When |
+|---|---|
+| Following | Glazer is on, set up, has camera access, and is calibrated for two or more connected displays |
+| Calibrating | During calibration |
+| Enrolling | During face lock setup |
+
+Otherwise the camera is off. With only one display connected, Glazer doesn't run the
+camera at all.
+
+## Threading
+
+- Camera frames arrive on a serial background queue, and Vision runs there.
+- Each `Frame` (a small `Sendable` value, never an image) is sent to the main actor.
+- The engine, the app state and the UI all run on the main actor. At 12 frames a second
+  the engine's work is negligible.
+
+## Testing
+
+| Target | Covers |
+|---|---|
+| `GlazerCoreTests` | Every decision: tracking, filtering, light, calibration, classification, the engine end to end, face signatures and enrolment, preferences |
+| `GlazerSystemTests` | Frame analysis with real Vision on synthetic camera images |
+
+Run `Scripts/test.sh`. It works with only the Command Line Tools installed.
 
 ## Building without Xcode
 
-The package builds with only the Command Line Tools. `Scripts/bundle.sh` wraps the
-executable in an `.app` bundle with `Resources/Info.plist` and signs it ad hoc.
-`Scripts/test.sh` adds the search paths Swift Testing needs when Xcode isn't installed.
+The package builds with only the Command Line Tools ([ADR 0002](adr/0002-swift-package-without-xcode.md)).
+`Scripts/bundle.sh` wraps the executable in `Glazer.app` with `Resources/Info.plist`, and
+signs it ad hoc with the hardened runtime and `Resources/Glazer.entitlements`, which
+declares the camera.

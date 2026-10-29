@@ -1,41 +1,95 @@
 # Privacy
 
-Glazer uses your camera. You should know exactly what it does with it.
+Glazer uses your camera. This page says exactly what it does with it. Every statement here
+can be checked in the source code.
 
-## What Glazer does
+## Summary
 
-- When Glazer is **on**, it reads frames from the camera and measures the position and
-  direction of faces in each frame. It keeps only the latest measurement in memory.
-- When Glazer is **off**, the camera is off. The green camera light on your Mac tells you
-  this independently of Glazer.
+- Everything happens on your Mac. Glazer makes **no network requests** of any kind.
+- Camera frames are analysed and **discarded immediately**. Nothing is recorded or saved.
+- The camera runs **only when needed**, and the camera light always shows when it does.
+- Face lock keeps a **face signature, not a photo**, in your Keychain, and only if you set it up.
 
-## What Glazer never does
+## The camera
 
-- It never records, saves or uploads camera frames or images of any kind.
-- It never identifies who you are. It doesn't use face recognition.
-- It makes no network requests at all. There is no analytics, no crash reporting and no
-  update check.
+When Glazer is on, has two or more displays to choose between, and has been set up, it
+reads up to 12 frames a second from the camera. Each frame is analysed on your Mac with
+Apple's Vision framework, which reports:
+
+- where each face is in the image, and how confident it is that it's a face;
+- which way each face is turned (yaw and pitch);
+- with face lock on, a face signature for up to three faces, only when Glazer needs to check who is in view;
+- the frame's average brightness.
+
+The frame is then dropped. Only the numbers above are kept, and only until the next frame.
+
+The camera also runs while you calibrate, and while you set up face lock. During face
+lock setup, a live preview is shown in the setup window. It is shown on screen only and
+never recorded.
+
+The camera is **off** when Glazer is turned off, when only one display is connected, and
+when setup isn't finished. The green camera light is controlled by macOS, not by Glazer,
+so it always tells you the truth.
 
 ## What Glazer stores
 
-Glazer stores its settings in your user defaults (`io.github.phanipaladugula.glazer`):
-whether it is on, and, once calibration ships, a few head angles for each display. Delete
-them with:
+| What | Where | Contains |
+|---|---|---|
+| Settings | User defaults (`io.github.phanipaladugula.glazer`) | On/off, setup done, switch delay, and each display's calibrated head angles |
+| Face lock template | Your login Keychain, item "Glazer face lock" | Face signatures from setup, and the match threshold learned from them |
 
-```sh
-defaults delete io.github.phanipaladugula.glazer
-```
+The face lock template is biometric data, so it gets extra protection:
+
+- It is a list of numbers computed by Vision, never a photo. It can't simply be turned
+  back into an image. Research has shown rough reconstructions are sometimes possible,
+  which is why it gets the protections below.
+- It lives only in your login Keychain, encrypted with your login password, and marked
+  as not synchronisable, so it never goes to iCloud Keychain. Like the rest of your
+  Keychain, it is included in your own encrypted Time Machine backups.
+- Setting it up and deleting it both need Touch ID or your login password.
+- It never leaves your Mac and is never sent anywhere.
+
+## What Glazer never does
+
+- Record, save or upload video, photos or screenshots.
+- Connect to the internet. There is no analytics, crash reporting, update check or
+  telemetry.
+- Read window titles or anything shown on your screen. To find the window to focus,
+  Glazer reads only window positions and which app owns them, which needs no Screen
+  Recording permission.
+- Identify who you are. Face lock only checks whether the face in view matches the one
+  enrolled on this Mac.
 
 ## Permissions
 
-| Permission | Why |
-|---|---|
-| Camera | To see which display you are facing |
-| Accessibility (later) | To move keyboard focus to a window on another display |
+| Permission | Why | Without it |
+|---|---|---|
+| Camera | To see which display you're facing | Glazer can't work |
+| Accessibility | To bring the window you last used on a display to the front | The pointer still moves, but macOS may not bring the window forward |
+| Touch ID or password | To confirm it's you before face lock is set up or deleted | Face lock can't be set up |
 
-Glazer asks for each permission only when it first needs it.
+## Removing everything
 
-## Verifying this
+1. In **Settings › Face Lock**, choose **Delete Face…**, or delete the "Glazer face lock"
+   item in Keychain Access.
+2. Remove settings and permissions:
 
-Glazer is open source, so you can check these claims in the code. Camera access lives in
-`Sources/GlazerSystem`, and nothing in the package imports networking APIs.
+   ```sh
+   defaults delete io.github.phanipaladugula.glazer
+   tccutil reset All io.github.phanipaladugula.glazer
+   ```
+
+3. Delete `Glazer.app`.
+
+## Checking these claims
+
+Camera access lives in `Sources/GlazerSystem/Camera` and `Sources/GlazerSystem/Vision`.
+Keychain storage is in `Sources/GlazerSystem/Security`. Nothing in the package imports
+networking APIs. You can check with:
+
+```sh
+grep -rnE "URLSession|Network|NWConnection|CFSocket" Sources
+```
+
+It finds nothing. The Privacy tab's link to this page hands the address to your browser;
+Glazer itself never connects.

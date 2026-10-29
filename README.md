@@ -1,40 +1,88 @@
+<div align="center">
+
 # Glazer
 
-**Your keyboard follows your eyes.** Glazer is a small macOS menu bar app for people who
-work across a MacBook and an external display. Look at the other screen and start typing:
-Glazer moves the pointer and keyboard focus there for you.
+**Your keyboard follows your eyes.**
+
+A macOS menu bar app for people who work across a MacBook and an external display.
+Look at the other screen and start typing. Glazer moves the pointer and keyboard focus there for you.
+
+[![CI](https://github.com/phanipaladugula/glazer/actions/workflows/ci.yml/badge.svg)](https://github.com/phanipaladugula/glazer/actions/workflows/ci.yml)
+![macOS 15+](https://img.shields.io/badge/macOS-15%2B-000000?logo=apple&logoColor=white)
+![Swift 6.2](https://img.shields.io/badge/Swift-6.2-F05138?logo=swift&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/hero-dark.svg">
-  <img src="docs/images/hero-light.svg" alt="Fig 1, head direction picks the display: a sighting turret standing in for the user's head is turned to +27° on an engraved yaw dial, past the hysteresis band at +12°, toward the monitor calibrated at +28°. The monitor's screen is lit and holds the pointer; the MacBook calibrated at −4° stays dark.">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/hero-dark.gif">
+  <img src="docs/images/hero-light.gif" width="880" alt="Animated figure: a sighting turret standing in for the user's head turns from the MacBook to the monitor on an engraved yaw dial. It crosses the hysteresis band, the dwell gauge fills, and only then does the lit screen and the pointer move to the monitor.">
 </picture>
 
-> [!NOTE]
-> Glazer is in early development. The menu bar app works today. Following your gaze is
-> being built; see the [roadmap](#roadmap).
+</div>
+
+## Contents
+
+- [Why Glazer](#why-glazer)
+- [How it works](#how-it-works)
+- [Privacy](#privacy)
+- [Install](#install)
+- [Getting started](#getting-started)
+- [Face lock](#face-lock)
+- [Troubleshooting](#troubleshooting)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+
+## Why Glazer
+
+With two displays, typing on the other screen means finding the pointer, dragging it
+across and clicking into the right window, dozens of times a day. Glazer removes that
+step. Turn to the other display and keep typing.
+
+- **Hands-free focus switching.** The pointer and keyboard focus go to the window you were last using on the display you face.
+- **Follows only you.** It ignores people walking past or sitting behind you. With face lock on, it follows only your face.
+- **Ignores glances.** A switch happens only after you've faced the other display for a moment, and looking down at your phone changes nothing.
+- **Private by design.** Everything runs on your Mac. No video is recorded and nothing goes over the network.
+- **Native and light.** A small menu bar app built with Apple frameworks only, using about 12 camera frames a second, and the camera stays off when it isn't needed.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/screenshots/panel-dark.png">
+    <img src="docs/images/screenshots/panel-light.png" width="300" alt="The Glazer menu bar panel: following your gaze, with the LG display highlighted in a map of both displays.">
+  </picture>
+</p>
 
 ## How it works
 
-Glazer doesn't try to work out the exact spot you're looking at, which webcams can't do
-reliably. It asks a much easier question: **which display is your head facing?**
+Webcams can't reliably tell the exact spot you're looking at. Glazer answers an easier
+question that's enough to pick a display: **which display is your head facing?**
 
-1. The camera sees your face, and Apple's Vision framework measures which way your head
-   is turned.
-2. A short calibration records the angle for each of your displays.
-3. When you face another display for about half a second, Glazer moves the pointer there
-   and brings back the window you were last using on it.
+1. **Measure.** The camera sees your face, and Apple's Vision framework measures which way your head is turned (yaw and pitch).
+2. **Calibrate.** You look at each display once, and Glazer records the angle for each.
+3. **Decide.** When you face another display, clearly and for half a second, Glazer moves the pointer there and brings back the window you last used on it.
 
-If other people are in view, Glazer follows only the person at the Mac: the nearest face,
-locked on from frame to frame. When it isn't sure, it does nothing.
+Glazer pauses rather than guesses. If the room is too dark, no one is in view, or (with face
+lock) the person isn't you, nothing moves. The [architecture guide](docs/ARCHITECTURE.md)
+explains the full pipeline.
 
-Everything happens on your Mac. Glazer never records, saves or sends video, and makes no
-network requests. See [Privacy](docs/PRIVACY.md).
+## Privacy
+
+Glazer uses your camera, so it holds itself to a strict standard:
+
+| | |
+|---|---|
+| **On your Mac only** | Frames are analysed with Apple's Vision framework and discarded immediately. Glazer makes no network requests at all. |
+| **No recordings** | No video, photos or screenshots are ever saved. Window titles and screen contents are never read. |
+| **Camera off when idle** | The camera runs only while Glazer is on and you have two displays. The camera light always tells you. |
+| **Face lock in the Keychain** | Your face signature is a list of numbers, not a photo. It's kept in your login Keychain, never synced to iCloud, and setting it up or deleting it needs Touch ID. |
+
+Read the full [privacy statement](docs/PRIVACY.md). Glazer is open source and has no
+third-party dependencies, so every claim can be checked in the code.
 
 ## Install
 
-Glazer needs macOS 14 Sonoma or later.
+**Requirements:** macOS 15 Sequoia or later, a camera, and two displays.
 
-Signed releases are coming with version 0.1. Until then, build it from source:
+Signed releases are coming with version 0.1. Until then, build from source. You need only
+Apple's Command Line Tools (`xcode-select --install`), not Xcode.
 
 ```sh
 git clone https://github.com/phanipaladugula/glazer.git
@@ -42,36 +90,116 @@ cd glazer
 Scripts/bundle.sh --open
 ```
 
-This builds `dist/Glazer.app` and opens it. You only need Apple's Command Line Tools
-(`xcode-select --install`), not Xcode. Copy the app to `/Applications` to keep it.
+This builds `dist/Glazer.app` and opens it. Move it to `/Applications` to keep it.
 
-## Use
+## Getting started
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/panel-dark.png">
-    <img src="docs/images/panel-light.png" width="300" alt="The Glazer panel: an on/off switch, a map of the connected displays with the focused one highlighted, and menu items.">
-  </picture>
-</p>
+<img src="docs/images/screenshots/setup.png" width="420" align="right" alt="The Glazer setup window welcoming the user.">
 
-- **Click the eye** in the menu bar to open the panel.
-- **Turn Glazer on or off** with the switch, or press **⌥⌘G** from any app. When Glazer
-  is off, the camera is off.
+The first time Glazer opens, a short setup walks you through:
+
+1. **Camera.** Allow access so Glazer can see which way you're facing.
+2. **Accessibility.** Allow it so Glazer can bring the right window to the front. Glazer still moves the pointer without it.
+3. **Calibration.** Look at each display as it lights up, about ten seconds in all.
+4. **Face lock** *(optional).* Glazer learns your face, so it follows only you.
+
+After that, Glazer lives in the menu bar.
+
+| Action | How |
+|---|---|
+| Turn Glazer on or off | Click the eye in the menu bar, or press **⌥⌘G** anywhere |
+| Recalibrate after moving a display | Menu bar › **Calibrate Displays…** |
+| Change how quickly it switches | **Settings › General › Switch after** |
+| See what Glazer sees | **Settings › Diagnostics** (live numbers, never images) |
+
+<br clear="right">
+
+## Face lock
+
+<img src="docs/images/screenshots/face-lock.png" width="300" align="right" alt="Face lock setup: a camera circle ringed by progress ticks.">
+
+Without face lock, Glazer follows the person nearest the camera and holds on to them as
+others come and go. With face lock, it follows only you.
+
+- **Setup** takes about ten seconds: confirm with Touch ID, then turn your head slowly from side to side.
+- **What's stored** is a face signature, a list of numbers computed by Apple's Vision framework. It's kept in your login Keychain and never leaves your Mac.
+- **Delete it** at any time in **Settings › Face Lock**. That needs Touch ID too.
+
+Face lock tells you apart from other people in view. It is **not** a security feature like
+Touch ID: someone who looks very like you may be recognised as you. [ADR 0004](docs/adr/0004-face-lock-with-vision-feature-prints.md)
+explains the approach and its limits.
+
+<br clear="right">
+
+## Troubleshooting
+
+<details>
+<summary><b>It picks the wrong display</b></summary>
+
+Recalibrate from the menu bar. Turn your **head** towards each display while calibrating,
+not just your eyes. If your displays sit very close together, try angling them apart a
+little.
+</details>
+
+<details>
+<summary><b>It says "Too dark to see you"</b></summary>
+
+Mac cameras can't see in the dark, and there's no infrared camera on a Mac. Light from your
+screens is usually enough. If not, a small lamp in front of you fixes it. Glazer pauses in
+the dark rather than guessing, so it never moves your pointer by mistake.
+</details>
+
+<details>
+<summary><b>The pointer moves, but the window doesn't come to the front</b></summary>
+
+Allow Glazer in **System Settings › Privacy & Security › Accessibility**. Without it, macOS
+may decline to bring another app's window forward.
+</details>
+
+<details>
+<summary><b>Glazer switches when I only glance at the other display</b></summary>
+
+Raise **Settings › General › Switch after**. At 1 second or more, only a deliberate look
+switches.
+</details>
+
+<details>
+<summary><b>macOS asks for Keychain access after I rebuild the app</b></summary>
+
+Builds from source are signed ad hoc, so macOS treats each rebuild as a new app and asks
+before it reads the face lock entry. Choose **Always Allow**. Signed releases won't ask.
+</details>
+
+<details>
+<summary><b>Reset all permissions and settings</b></summary>
+
+```sh
+tccutil reset All io.github.phanipaladugula.glazer
+defaults delete io.github.phanipaladugula.glazer
+```
+
+Then delete face lock in Settings, or remove the "Glazer face lock" item in Keychain Access.
+</details>
 
 ## Roadmap
 
-- [x] Menu bar app with on/off switch, display map and global shortcut
-- [ ] Head direction from the camera, following only the person at the Mac
-- [ ] Calibration
-- [ ] Move pointer and keyboard focus to the display you face
-- [ ] Settings, launch at login, signed release
+- [x] Menu bar app, display map and global shortcut
+- [x] Head direction from the camera, following only the person at the Mac
+- [x] Calibration, and moving the pointer and keyboard focus
+- [x] Low-light detection
+- [x] Face lock, stored in the Keychain behind Touch ID
+- [ ] Signed and notarised release, Homebrew cask
+- [ ] Three or more displays in a row, and stacked displays
+- [ ] Optional iPhone companion that uses Face ID's infrared camera for dark rooms
 
 ## Contributing
 
-Bug reports, ideas and pull requests are welcome. Start with
-[CONTRIBUTING.md](CONTRIBUTING.md), and read [ARCHITECTURE.md](docs/ARCHITECTURE.md) for
-how the code fits together.
+Bug reports, ideas and pull requests are welcome. Read the [contributing guide](CONTRIBUTING.md)
+to get set up. The [architecture guide](docs/ARCHITECTURE.md) explains how the code fits
+together, the [design spec](docs/design/README.md) covers the interface, and the
+[decision records](docs/adr) explain why things are the way they are.
 
 ## License
 
-[MIT](LICENSE)
+Glazer is released under the [MIT License](LICENSE). The README figure is drawn with an
+isometric kit from the Anatomy skill, also MIT ([details](docs/figure/README.md)).

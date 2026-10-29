@@ -1,12 +1,13 @@
 import SwiftUI
 
-/// The symbol shown in the menu bar. `eye` and `eye.slash` share a width, so the menu
-/// bar doesn't shift when Glazer is turned on or off.
+/// The symbol shown in the menu bar. The `eye` symbols share a width, so the menu bar
+/// doesn't shift when the state changes.
 struct MenuBarIcon: View {
-    let isEnabled: Bool
+    let condition: AppModel.Condition
 
     var body: some View {
-        Image(systemName: isEnabled ? "eye" : "eye.slash")
-            .accessibilityLabel(isEnabled ? "Glazer, on" : "Glazer, off")
+        let presentation = ConditionPresentation(condition)
+        Image(systemName: presentation.symbol)
+            .accessibilityLabel("Glazer, \(presentation.status)")
     }
 }
