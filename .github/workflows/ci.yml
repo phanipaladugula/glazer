@@ -25,7 +25,7 @@ env:
   # Minimum line coverage of GlazerCore, the decision logic. It's at 99%; this leaves room
   # for small changes without letting coverage slide.
   MINIMUM_CORE_COVERAGE: "95"
-  ACTIONLINT_VERSION: "1.7.7"
+  ACTIONLINT_VERSION: "1.7.12"
 
 jobs:
   lint:

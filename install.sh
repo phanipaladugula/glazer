@@ -114,6 +114,7 @@ human_size() {
 # and looks the same in Terminal and iTerm on dark and light backgrounds.
 # "." is transparent.
 
+# shellcheck disable=SC2034 # Read by name in render_frame.
 robot_walk_a=(
     "............"
     ".hhbbbbbbbb."
@@ -124,6 +125,7 @@ robot_walk_a=(
     ".bbbbbbbbBB."
     ".b.B....b.B."
 )
+# shellcheck disable=SC2034 # Read by name in render_frame.
 robot_walk_b=(
     "............"
     ".hhbbbbbbbb."
@@ -134,6 +136,7 @@ robot_walk_b=(
     ".bbbbbbbbBB."
     "..b.B..b.B.."
 )
+# shellcheck disable=SC2034 # Read by name in render_frame.
 robot_blink=(
     "............"
     ".hhbbbbbbbb."
@@ -144,6 +147,7 @@ robot_blink=(
     ".bbbbbbbbBB."
     "..b.B..b.B.."
 )
+# shellcheck disable=SC2034 # Read by name in render_frame.
 robot_jump=(
     "y..........y"
     ".hCcccccccb."
@@ -335,8 +339,12 @@ workspace=""
 download_pid=""
 
 cleanup() {
-    [[ -n "$download_pid" ]] && kill "$download_pid" 2>/dev/null || true
-    [[ -n "$workspace" ]] && rm -rf "$workspace"
+    if [[ -n "$download_pid" ]]; then
+        kill "$download_pid" 2>/dev/null || true
+    fi
+    if [[ -n "$workspace" ]]; then
+        rm -rf "$workspace"
+    fi
     finish_animation
 }
 trap cleanup EXIT

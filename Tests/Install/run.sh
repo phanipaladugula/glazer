@@ -7,7 +7,12 @@
 #   -h, --help   Show this help.
 #
 # Everything installs into scratch folders; nothing touches /Applications. Tests that would
-# change this Mac's real settings (uninstall, running under sudo) only run on CI.
+# change this Mac's real settings (uninstall, running under sudo) only run on GitHub's
+# hosted runners.
+
+# The checks below run small `bash -c '...'` scripts whose variables must expand in the
+# child shell, not here, so single quotes are intended.
+# shellcheck disable=SC2016
 
 source "$(dirname "${BASH_SOURCE[0]}")/../../Scripts/lib/common.sh"
 
@@ -109,7 +114,9 @@ terminal_test() {
     local columns=$1 rows=$2 expect=$3 label=$4
     shift 4
     local result
-    result="$(GLAZER_RELEASE_URL="file://$package" GLAZER_INSTALL_DIR="$workspace/tty-$label" \
+    # The installer turns the animation off when CI is set, as on GitHub Actions, and these
+    # tests are about the animation, so they run without it.
+    result="$(env -u CI GLAZER_RELEASE_URL="file://$package" GLAZER_INSTALL_DIR="$workspace/tty-$label" \
         python3 "$pty_run" "$columns" "$rows" "$@" -- /bin/bash "$installer" --no-open)"
     python3 -c '
 import json, sys
@@ -134,9 +141,13 @@ check "a 50-column terminal falls back to plain output" terminal_test 50 20 plai
 check "Ctrl-C cancels, restores the cursor and installs nothing" terminal_test 100 30 cancelled cancelled --interrupt-after 0.8
 check "...and leaves no app behind" not_installed "$workspace/tty-cancelled"
 
-# --- CI only: things that would change this Mac's real settings -----------------------------
+# --- GitHub Actions only: things that would change this Mac's real settings ---------------
+#
+# Uninstalling deletes Glazer's real settings, permissions and face lock item, and the sudo
+# test needs passwordless sudo. Only GitHub's throwaway runners run these. (Not keyed on
+# CI, which developers often have set.)
 
-if [[ -n "${CI:-}" ]]; then
+if [[ "${GITHUB_ACTIONS:-}" == true && "${RUNNER_ENVIRONMENT:-}" == github-hosted ]]; then
     check "running under sudo is refused with exit 77" bash -c 'sudo -n /bin/bash "$0" --no-open >/dev/null 2>&1; [[ $? -eq 77 ]]' "$installer"
     uninstall_dir="$workspace/uninstall"
     install_from "$package" "$uninstall_dir"
@@ -144,7 +155,7 @@ if [[ -n "${CI:-}" ]]; then
         'GLAZER_INSTALL_DIR="$0" NO_COLOR=1 /bin/bash "$1" --uninstall >/dev/null 2>&1 && [[ ! -e "$0/Glazer.app" ]]' \
         "$uninstall_dir" "$installer"
 else
-    note "Skipping the sudo and uninstall tests: they only run on CI."
+    note "Skipping the sudo and uninstall tests: they only run on GitHub's hosted runners."
 fi
 
 info ""
