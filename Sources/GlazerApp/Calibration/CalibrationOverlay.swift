@@ -78,6 +78,19 @@ struct CalibrationOverlay: View {
                 )
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
+        case .failed(.cameraStopped):
+            if display.hasMenuBar {
+                ResultCard(
+                    symbol: "video.slash.fill",
+                    tint: .yellow,
+                    title: "The camera stopped",
+                    message: "It may have been disconnected, or another app may be using it. "
+                        + "Check the camera, then try again.",
+                    primary: ("Try Again", onRetry),
+                    secondary: ("Cancel", onCancel)
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
         }
     }
 }
@@ -175,6 +188,7 @@ private struct HintLabel: View {
         case .tooDark: "Too dark to see you. Turn on a light in front of you."
         case .notRecognized: "Face lock doesn't recognise you. Calibration needs the enrolled user."
         case .holdStill: "Hold still while the ring fills."
+        case .turnToDisplay: "Turn your head to face this display."
         }
     }
 
@@ -182,6 +196,7 @@ private struct HintLabel: View {
         switch hint {
         case .tooDark: "moon.fill"
         case .holdStill: "hand.raised.fill"
+        case .turnToDisplay: "arrow.left.and.right"
         default: "eye.trianglebadge.exclamationmark"
         }
     }

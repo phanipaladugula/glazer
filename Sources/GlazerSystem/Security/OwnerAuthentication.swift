@@ -13,8 +13,9 @@ public enum OwnerAuthentication {
         let context = LAContext()
         var error: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
-            // No password is set and no Touch ID: nothing to ask for.
-            return true
+            // Only a Mac with no login password has nothing to ask for. Any other problem
+            // (Touch ID locked out, policy restrictions) fails closed.
+            return error?.code == LAError.passcodeNotSet.rawValue
         }
         do {
             return try await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason)

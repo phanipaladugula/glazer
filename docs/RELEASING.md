@@ -38,15 +38,51 @@ latest tag, and its build number from the commit count, so neither is edited by 
 
 ## Signing
 
-Releases are signed ad hoc with the hardened runtime and the camera entitlement. Without an
-Apple Developer ID:
+macOS recognises an app by its code signature. If every release is signed with the same
+identity, macOS treats updates as the same app: the face lock Keychain item stays readable
+without asking, and camera and Accessibility permissions are kept. If not, each release is
+a stranger.
+
+Glazer doesn't have an Apple Developer ID, so it uses its own self-signed code signing
+certificate. That gives the stable identity, though not Gatekeeper approval, which only a
+Developer ID and notarisation give.
+
+### Set it up once
+
+1. Create the identity somewhere private, outside the repository:
+
+   ```sh
+   Scripts/signing.sh create ~/Glazer-Signing
+   ```
+
+2. Add it to the repository's secrets, so the Release workflow signs with it:
+
+   ```sh
+   base64 -i ~/Glazer-Signing/Glazer-Signing.p12 | gh secret set SIGNING_P12
+   gh secret set SIGNING_P12_PASSWORD < ~/Glazer-Signing/Glazer-Signing.password
+   ```
+
+3. Pin the certificate in `install.sh` (`expected_signer`) to the fingerprint in
+   `~/Glazer-Signing/Glazer-Signing.sha1`, so the installer rejects anything not signed
+   with it.
+
+4. Optionally, sign your own builds with it too, so they share the release's identity:
+
+   ```sh
+   Scripts/signing.sh install ~/Glazer-Signing
+   ```
+
+Keep `~/Glazer-Signing` backed up and private. Anyone with the `.p12` and its password can
+sign apps that macOS treats as Glazer. If it's lost, create a new one: users are asked once
+more after the next update.
+
+Without the secrets the Release workflow still publishes, signed ad hoc, and warns.
+
+### What users see
 
 - `install.sh` installs without Gatekeeper warnings, because `curl` doesn't quarantine
   downloads.
 - A zip downloaded in a browser needs a right-click › **Open** the first time.
-- macOS treats each version as a new app, so people allow the camera and Accessibility
-  again after an update.
-
-Developer ID signing and notarisation would remove all three. They need a paid Apple
-Developer account, and secrets for the certificate and a notarisation key in the
-repository settings.
+- With the signing identity, updates keep permissions and Keychain access. Without it,
+  people allow the camera and Accessibility again, and Glazer's Keychain item again,
+  after each update.

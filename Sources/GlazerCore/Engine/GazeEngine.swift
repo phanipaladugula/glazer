@@ -28,6 +28,8 @@ public struct GazeEngine: Sendable {
         public var lightLevel: LightLevel
         /// The display the user is facing, once decided.
         public var focusedDisplay: Display.ID?
+        /// The display the user is facing in this frame, before the dwell.
+        public var facingDisplay: Display.ID?
         /// Set on the frame where focus moved to another display.
         public var switchedTo: Display.ID?
     }
@@ -66,6 +68,17 @@ public struct GazeEngine: Sendable {
         classifier?.setFocused(id)
     }
 
+    /// The user moved focus to `id` themselves. See ``DisplayClassifier/userFocused(_:)``.
+    public mutating func userFocused(_ id: Display.ID) {
+        classifier?.userFocused(id)
+    }
+
+    /// Changes how long the user must face another display before it takes focus, without
+    /// losing who is being followed or where they're looking.
+    public mutating func setDwell(_ dwell: TimeInterval) {
+        classifier?.configuration.dwell = dwell
+    }
+
     public mutating func process(_ frame: Frame) -> Output {
         let lightLevel = lightMeter.update(brightness: frame.brightness)
         let previousFocus = classifier?.focused
@@ -92,6 +105,7 @@ public struct GazeEngine: Sendable {
             pose: status == .following ? pose : nil,
             lightLevel: lightLevel,
             focusedDisplay: focused,
+            facingDisplay: status == .following ? classifier?.nearest : nil,
             switchedTo: focused != previousFocus ? focused : nil
         )
     }

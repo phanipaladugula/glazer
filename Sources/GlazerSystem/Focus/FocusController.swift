@@ -17,10 +17,11 @@ public final class FocusController {
 
     public init() {}
 
-    /// Moves focus to `display`. Does nothing while a mouse button is held, so a drag is
-    /// never interrupted.
-    public func focus(_ display: Display.ID, leaving previous: Display.ID?) {
-        guard NSEvent.pressedMouseButtons == 0 else { return }
+    /// Moves focus to `display`, and returns whether it did. Does nothing while a mouse
+    /// button is held, so a drag is never interrupted.
+    @discardableResult
+    public func focus(_ display: Display.ID, leaving previous: Display.ID?) -> Bool {
+        guard NSEvent.pressedMouseButtons == 0 else { return false }
 
         let pointer = Self.pointerLocation()
         if let previous {
@@ -40,6 +41,7 @@ public final class FocusController {
         CGWarpMouseCursorPosition(target)
         // Without this, the pointer pauses for a moment after a warp.
         CGAssociateMouseAndMouseCursorPosition(1)
+        return true
     }
 
     /// Records the pointer's position for its current display, such as when the user

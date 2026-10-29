@@ -82,7 +82,7 @@ GlazerCore     Pure decision logic and value types. No AppKit, no hardware
 | `Display/` | `DisplayMonitor` |
 | `HotKey/` | `HotKey`, a global shortcut through Carbon |
 | `Login/` | `LaunchAtLogin` |
-| `Support/` | `SystemSettings`, which opens Privacy & Security panes |
+| `Support/` | `SystemSettings`, which opens Privacy & Security panes; `SessionMonitor`, which reports when the screen locks, sleeps or the user switches out |
 
 ### GlazerApp
 
@@ -127,9 +127,16 @@ camera at all.
 
 Run `Scripts/test.sh`. It works with only the Command Line Tools installed.
 
+## Tools
+
+`glazer-camera-check` is a small command-line target that runs the real camera and Vision
+code and prints the head angle live: `swift run glazer-camera-check`. Use it to check a
+camera or a lighting setup without the app.
+
 ## Building without Xcode
 
 The package builds with only the Command Line Tools ([ADR 0002](adr/0002-swift-package-without-xcode.md)).
 `Scripts/bundle.sh` wraps the executable in `Glazer.app` with `Resources/Info.plist`, and
-signs it ad hoc with the hardened runtime and `Resources/Glazer.entitlements`, which
-declares the camera.
+signs it with the hardened runtime and `Resources/Glazer.entitlements`, which declares the
+camera. It signs with Glazer's signing identity when one is configured, so every build has
+the same identity, and ad hoc otherwise ([Releasing › Signing](RELEASING.md#signing)).

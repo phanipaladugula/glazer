@@ -6,8 +6,10 @@
 #   --universal  Build for both Apple silicon and Intel, as releases are.
 #   --open       Launch the app when done (quits a running copy first).
 #
-# The app is signed ad hoc with the hardened runtime. That is enough to run it, and for
-# macOS to remember its permissions until the next build.
+# The app is signed with the hardened runtime. With a signing identity (see
+# Scripts/signing.sh), every build has the same identity, so macOS keeps its permissions
+# and Keychain access across builds. Without one it's signed ad hoc, and macOS treats
+# each build as a new app.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -54,7 +56,25 @@ sed -e "s/\$(VERSION)/${version}/" -e "s/\$(BUILD)/${build}/" \
     Resources/Info.plist > "$app/Contents/Info.plist"
 plutil -lint -s "$app/Contents/Info.plist"
 
-codesign --force --sign - --options runtime --entitlements Resources/Glazer.entitlements "$app"
+# A signing identity comes from the environment (CI), or from Scripts/signing.sh install.
+if [[ -z "${GLAZER_SIGNING_IDENTITY:-}" && -f "$HOME/.config/glazer/signing.env" ]]; then
+    # shellcheck source=/dev/null
+    source "$HOME/.config/glazer/signing.env"
+fi
+
+if [[ -n "${GLAZER_SIGNING_IDENTITY:-}" ]]; then
+    keychain_options=()
+    if [[ -n "${GLAZER_SIGNING_KEYCHAIN:-}" ]]; then
+        security unlock-keychain -p "${GLAZER_SIGNING_KEYCHAIN_PASSWORD:-}" "$GLAZER_SIGNING_KEYCHAIN"
+        keychain_options=(--keychain "$GLAZER_SIGNING_KEYCHAIN")
+    fi
+    echo "Signing with identity ${GLAZER_SIGNING_IDENTITY}"
+    codesign --force ${keychain_options[@]+"${keychain_options[@]}"} --sign "$GLAZER_SIGNING_IDENTITY" \
+        --options runtime --entitlements Resources/Glazer.entitlements "$app"
+else
+    echo "Signing ad hoc (no signing identity; see Scripts/signing.sh)"
+    codesign --force --sign - --options runtime --entitlements Resources/Glazer.entitlements "$app"
+fi
 codesign --verify --strict "$app"
 
 echo "Built $app ($(lipo -archs "$app/Contents/MacOS/Glazer"))"

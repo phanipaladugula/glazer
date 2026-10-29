@@ -10,9 +10,10 @@ struct FrameAnalyzer: Sendable {
     /// and the user is almost always among the nearest few faces.
     private let maximumSignatures = 3
 
-    /// How much to widen a face's box before computing its signature, so the crop
-    /// includes the whole face rather than just the eyes, nose and mouth.
-    private let signatureCropPadding = 0.15
+    /// How much to widen a face's box before computing its signature. None: tested on
+    /// real portraits, the exact box separated people best, because any wider crop lets
+    /// hair, clothes and background, which aren't who someone is, sway the comparison.
+    private let signatureCropPadding = 0.0
 
     func analyze(_ pixelBuffer: CVPixelBuffer, at timestamp: TimeInterval, includeSignatures: Bool) -> Frame {
         let brightness = Self.brightness(of: pixelBuffer)

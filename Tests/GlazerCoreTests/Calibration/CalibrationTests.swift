@@ -33,3 +33,33 @@ struct CalibrationTests {
         #expect(twoDisplayCalibration.issue() == nil)
     }
 }
+
+@Suite("Calibration for connected displays")
+struct CalibrationRestrictionTests {
+    @Test("Points for disconnected displays are dropped")
+    func dropsDisconnected() {
+        let calibration = Calibration(points: [
+            .init(displayID: 1, pose: HeadPose(yaw: -4, pitch: 0)),
+            .init(displayID: 2, pose: HeadPose(yaw: 28, pitch: 0)),
+            .init(displayID: 3, pose: HeadPose(yaw: 60, pitch: 0)),
+        ])
+        let connected = [Display(id: 1, name: "A", frame: .zero), Display(id: 2, name: "B", frame: .zero)]
+
+        #expect(calibration.restricted(to: connected).points.map(\.displayID) == [1, 2])
+    }
+
+    @Test("Facing where a disconnected display was never picks it")
+    func neverPicksDisconnected() {
+        let calibration = Calibration(points: [
+            .init(displayID: 1, pose: HeadPose(yaw: -4, pitch: 0)),
+            .init(displayID: 2, pose: HeadPose(yaw: 28, pitch: 0)),
+            .init(displayID: 3, pose: HeadPose(yaw: 60, pitch: 0)),
+        ])
+        let connected = [Display(id: 1, name: "A", frame: .zero), Display(id: 2, name: "B", frame: .zero)]
+        var classifier = DisplayClassifier(calibration: calibration.restricted(to: connected))
+        classifier.setFocused(1)
+
+        classifier.update(with: HeadPose(yaw: 60, pitch: 0), at: 0)
+        #expect(classifier.update(with: HeadPose(yaw: 60, pitch: 0), at: 1) != 3)
+    }
+}

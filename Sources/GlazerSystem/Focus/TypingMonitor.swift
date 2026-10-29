@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 
 /// Reports when the user presses a key in any app, so Glazer doesn't switch displays while
 /// they're typing.
@@ -21,6 +22,19 @@ public final class TypingMonitor {
             let timestamp = ProcessInfo.processInfo.systemUptime
             MainActor.assumeIsolated { onKeyPress(timestamp) }
         }
+    }
+
+    /// The process that has Secure Event Input on, or `nil` if none has.
+    ///
+    /// While a password field has focus, macOS turns Secure Event Input on and hides
+    /// keystrokes from other apps, so the monitor sees no typing. Glazer must not take that
+    /// as a pause, or the rest of a password could go to another window. Some apps also
+    /// leave it on for long stretches, such as Terminal's Secure Keyboard Entry, so callers
+    /// should check which app holds it. Returns 0 when it's on but the holder is unknown.
+    public var secureInputOwner: pid_t? {
+        guard IsSecureEventInputEnabled() else { return nil }
+        let session = CGSessionCopyCurrentDictionary() as? [String: Any]
+        return (session?["kCGSSessionSecureInputPID"] as? NSNumber)?.int32Value ?? 0
     }
 
     public func stop() {

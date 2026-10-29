@@ -15,6 +15,8 @@ final class CalibrationSession {
     enum Failure: Equatable {
         /// Two displays were recorded at nearly the same head pose.
         case displaysTooClose
+        /// The camera stopped part way, such as when it was disconnected.
+        case cameraStopped
     }
 
     enum Hint: Equatable {
@@ -23,7 +25,14 @@ final class CalibrationSession {
         case tooDark
         case notRecognized
         case holdStill
+        /// Still facing the display just recorded.
+        case turnToDisplay
     }
+
+    /// How far, in degrees, the head must turn from the previous display before the next
+    /// one is recorded. The same separation calibration requires between displays.
+    private let minimumTurn = 6.0
+    private var hasTurned = true
 
     /// Displays in calibration order, left to right.
     let displays: [Display]
@@ -57,6 +66,17 @@ final class CalibrationSession {
             return
         }
 
+        // Don't record the next display until the user has turned away from the last one,
+        // or a slow turn would record the previous display's pose twice.
+        if !hasTurned, let previous = points.last?.pose {
+            guard pose.distance(to: previous, pitchWeight: 0.6) >= minimumTurn else {
+                hint = .turnToDisplay
+                progress = 0
+                return
+            }
+            hasTurned = true
+        }
+
         switch recorder.add(pose, at: timestamp) {
         case .settling:
             hint = .none
@@ -73,9 +93,16 @@ final class CalibrationSession {
         }
     }
 
+    /// The camera stopped part way.
+    func cameraStopped() {
+        guard case .recording = phase else { return }
+        phase = .failed(.cameraStopped)
+    }
+
     /// Starts over from the first display.
     func restart() {
         points.removeAll()
+        hasTurned = true
         recorder = CalibrationRecorder()
         progress = 0
         hint = .none
@@ -88,6 +115,7 @@ final class CalibrationSession {
         recorder = CalibrationRecorder()
 
         guard index + 1 >= displays.count else {
+            hasTurned = false
             phase = .recording(index: index + 1)
             return
         }

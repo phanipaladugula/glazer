@@ -5,6 +5,9 @@ name: Release
 #
 # On pull requests that touch packaging, the same build runs as a dry run, so a broken
 # release is caught before a tag is pushed.
+#
+# Only the publish job can write to the repository. Building and testing run with a
+# read-only token, so code from a pull request can never publish anything.
 
 on:
   push:
@@ -19,25 +22,43 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Build and publish
+  build:
+    name: Build
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v5
+      # Actions are pinned to exact commits, so a moved tag can't change what runs.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           # The bundle script reads the version from the latest tag and the build number
           # from the commit count, so it needs the full history.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Test
         run: Scripts/test.sh
+
+      # With the signing secrets, every release is signed with the same identity, so macOS
+      # keeps Glazer's permissions and Keychain access across updates. Without them (forks,
+      # or before the identity exists) the build is signed ad hoc.
+      - name: Import signing identity
+        env:
+          SIGNING_P12: ${{ secrets.SIGNING_P12 }}
+          SIGNING_P12_PASSWORD: ${{ secrets.SIGNING_P12_PASSWORD }}
+        run: |
+          if [[ -n "$SIGNING_P12" ]]; then
+            Scripts/signing.sh import-ci >> "$GITHUB_ENV"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "::warning::Publishing a release signed ad hoc. Users will be asked for Keychain access and lose permissions on update. Add SIGNING_P12 and SIGNING_P12_PASSWORD (see Scripts/signing.sh)."
+          else
+            echo "No signing identity in this repository's secrets; signing ad hoc."
+          fi
 
       - name: Build universal app
         run: Scripts/bundle.sh --universal
@@ -52,6 +73,7 @@ jobs:
           echo "Architectures: $archs"
           [[ "$archs" == *arm64* && "$archs" == *x86_64* ]]
           codesign --verify --strict --verbose=2 dist/Glazer.app
+          codesign -d -r- dist/Glazer.app
           codesign -d --entitlements - dist/Glazer.app 2>/dev/null | grep -q com.apple.security.device.camera
           # Install from the package exactly as users will, into a scratch folder.
           GLAZER_RELEASE_URL="file://$PWD/dist" GLAZER_INSTALL_DIR="$RUNNER_TEMP/apps" bash install.sh --no-open
@@ -65,20 +87,38 @@ jobs:
           [[ "v$bundled" == "$GITHUB_REF_NAME" ]] || { echo "App says $bundled, tag is $GITHUB_REF_NAME"; exit 1; }
 
       - name: Upload build
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: Glazer-${{ github.sha }}
+          name: Glazer
           path: |
             dist/Glazer.zip
             dist/Glazer.zip.sha256
           retention-days: 14
 
+  publish:
+    name: Publish
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: macos-26
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Download build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: Glazer
+          path: dist
+
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          (cd dist && shasum -a 256 -c Glazer.zip.sha256)
           Scripts/release-notes.sh "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
           gh release create "$GITHUB_REF_NAME" dist/Glazer.zip dist/Glazer.zip.sha256 \
             --title "Glazer ${GITHUB_REF_NAME#v}" \

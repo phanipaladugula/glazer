@@ -48,4 +48,20 @@ struct FaceSignatureTests {
     func thresholdRange(signatures: [FaceSignature]) {
         #expect(FaceTemplate.thresholdRange.contains(FaceTemplate(signatures: signatures).threshold))
     }
+
+    @Test("Grouped by angle, the threshold compares across angles, not near-copies")
+    func crossAngleThreshold() {
+        let straight = [FaceSignature(values: [1, 0, 0]), FaceSignature(values: [1, 0.01, 0])]
+        let turned = [FaceSignature(values: [0.8, 0.6, 0]), FaceSignature(values: [0.8, 0.61, 0])]
+        let template = FaceTemplate(groups: [straight, turned], margin: 0)
+        let acrossAngles = straight[0].similarity(to: turned[0])
+
+        #expect(abs(template.threshold - acrossAngles) < 0.01)
+        #expect(template.threshold < straight[0].similarity(to: straight[1]))
+    }
+
+    @Test("Templates from before the exact-box crop are stale")
+    func versionOneIsStale() {
+        #expect(!FaceTemplate(signatures: [People.alice], version: 1).isCurrent)
+    }
 }

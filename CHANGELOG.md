@@ -18,6 +18,58 @@ All notable changes to Glazer are recorded here. The format follows
 
 ### Added
 
+- `swift run glazer-camera-check`, which shows your head's yaw live using Glazer's own
+  camera code.
+
+### Changed
+
+- Face lock is marked experimental. Its signatures now use the exact face box, its match
+  threshold is learned across head angles, and it drops the user only after three failed
+  checks in a row. Face lock needs setting up again.
+- Setup explains that without Accessibility only the pointer moves, and the menu bar
+  panel offers to fix it.
+
+### Security
+
+- Face lock no longer silently turns off when its Keychain item can't be read (such as
+  after choosing Deny); Glazer pauses and offers Try Again rather than following anyone.
+- Focus never moves while a password is being typed in the frontmost app.
+- Owner authentication fails closed unless the Mac has no login password, and the face
+  lock item is updated in place.
+- Builds can be signed with a stable identity (`Scripts/signing.sh`), so macOS keeps
+  Keychain access and permissions across updates. Release builds run with a read-only
+  token, publish from a separate job, and use actions pinned to commits.
+
+### Fixed
+
+- macOS asked for Keychain access at every launch: the face lock item is now read only
+  when it's needed, at most once per launch.
+- Toggling Glazer quickly could leave the camera off while showing "Looking for you".
+- Moving the pointer to another display by hand was undone a moment later.
+- A switch held back while typing could fire after the user had turned back, and the
+  display map showed it as focused while it was held.
+- Granting Accessibility later now starts typing detection without a relaunch.
+- Calibration shows when the camera stops, cancels if a display is connected or removed,
+  and waits for the user to turn before recording the next display.
+- "Open at login" shows what macOS actually did, and asks for approval when needed.
+- "Camera unavailable" has a Try Again button, face lock's states each say what's
+  happening, and setup can calibrate again.
+
+- A display that was disconnected after calibration could still be chosen, warping the
+  pointer to a corner.
+- Closing the face lock window while Touch ID was showing could leave the camera running.
+- The camera now recovers after it's disconnected or fails, rather than staying
+  "unavailable" until relaunch.
+- The camera now turns off while the screen is locked or asleep, or another user is
+  switched in.
+- Changing the switch delay no longer resets who Glazer is following.
+- A switch blocked by a mouse drag is retried cleanly after the drag.
+- The pointer on the top row of pixels no longer counts as off every display.
+- Escape on "Calibration complete" keeps the calibration, and the camera turns off while
+  the result is shown.
+
+### Added
+
 - Glazer never switches displays while you're typing. Keep typing while you look at
   notes or talk to someone, and your words stay where they are. Stop typing for a second
   while facing another display, and focus moves there, ready for you. Glazer only notes

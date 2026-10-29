@@ -18,6 +18,9 @@ final class FaceEnrolmentFlow {
     private(set) var enrolment = FaceEnrollment()
 
     private let model: AppModel
+    /// Bumped by every start and cancel, so a start that finishes late can tell it's
+    /// been cancelled.
+    private var attempt = 0
 
     init(model: AppModel) {
         self.model = model
@@ -25,7 +28,12 @@ final class FaceEnrolmentFlow {
 
     /// Asks for Touch ID or the password, then starts scanning.
     func start() async {
+        attempt += 1
+        let attempt = attempt
         guard await OwnerAuthentication.confirm(reason: "set up face lock") else { return }
+        // The window may have closed, or setup been cancelled, while Touch ID was showing.
+        // Starting the camera then would leave it running with nothing to stop it.
+        guard attempt == self.attempt else { return }
         enrolment = FaceEnrollment()
         step = .scanning
         model.beginFaceEnrolment { [weak self] frame in
@@ -34,6 +42,7 @@ final class FaceEnrolmentFlow {
     }
 
     func cancel() {
+        attempt += 1
         if step == .scanning {
             model.cancelFaceEnrolment()
         }

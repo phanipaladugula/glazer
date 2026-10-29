@@ -34,9 +34,15 @@ public struct TypingGuard: Sendable {
         return release(at: timestamp)
     }
 
-    /// Returns the held-back display once the user has stopped typing. Call regularly,
-    /// such as on every camera frame.
-    public mutating func release(at timestamp: TimeInterval) -> Display.ID? {
+    /// Returns the held-back display once the user has stopped typing, if they still face
+    /// it. Call regularly, such as on every camera frame.
+    ///
+    /// - Parameter facing: The display the user faces now. If they've turned away from the
+    ///   held display, the switch is dropped.
+    public mutating func release(at timestamp: TimeInterval, facing: Display.ID? = nil) -> Display.ID? {
+        if let facing, facing != heldDisplay {
+            heldDisplay = nil
+        }
         guard let heldDisplay, timestamp - lastKeystroke >= pause else { return nil }
         focusedDisplay = heldDisplay
         self.heldDisplay = nil

@@ -80,3 +80,35 @@ struct GazeEngineTests {
         #expect(output.focusedDisplay == macBookID)
     }
 }
+
+@Suite("GazeEngine settings")
+struct GazeEngineSettingsTests {
+    @Test("Changing the dwell keeps the user followed and applies the new delay")
+    func changeDwell() {
+        var engine = GazeEngine(calibration: twoDisplayCalibration)
+        engine.setFocusedDisplay(macBookID)
+        _ = engine.process(frame(at: 0, face(yaw: -4, pitch: -8)))
+
+        engine.setDwell(1.0)
+        _ = engine.process(frame(at: 0.1, face(yaw: 28, pitch: 2)))
+        let early = engine.process(frame(at: 0.8, face(yaw: 28, pitch: 2)))
+        let late = engine.process(frame(at: 1.2, face(yaw: 28, pitch: 2)))
+
+        #expect(early.status == .following && early.focusedDisplay == macBookID)
+        #expect(late.focusedDisplay == monitorID)
+    }
+}
+
+@Suite("GazeEngine facing")
+struct GazeEngineFacingTests {
+    @Test("Facing changes on the frame the head turns; focus waits for the dwell")
+    func facingIsImmediate() {
+        var engine = GazeEngine(calibration: twoDisplayCalibration)
+        engine.setFocusedDisplay(macBookID)
+        _ = engine.process(frame(at: 0, face(yaw: -4, pitch: -8)))
+        let turned = engine.process(frame(at: 0.1, face(yaw: 28, pitch: 2)))
+
+        #expect(turned.facingDisplay == monitorID)
+        #expect(turned.focusedDisplay == macBookID)
+    }
+}

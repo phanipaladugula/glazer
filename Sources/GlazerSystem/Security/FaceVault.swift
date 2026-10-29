@@ -4,9 +4,14 @@ import Security
 
 /// Keeps the face lock template in the macOS Keychain.
 ///
-/// The template is biometric data, so it never goes in user defaults or a file. The
-/// Keychain encrypts it with the user's login password, and it is marked as not
-/// synchronisable, so it never leaves the Mac through iCloud Keychain.
+/// The template is biometric data, so it never goes in user defaults or a file. It's a
+/// generic password item in the user's login keychain, which macOS encrypts with their
+/// login password and never syncs to iCloud.
+///
+/// macOS lets the app that saved the item read it without asking, and asks the user
+/// before any other app does. It recognises "the same app" by code signature, so builds
+/// signed with Glazer's signing identity (see Scripts/signing.sh) read it silently, while
+/// ad hoc builds are asked once per build.
 public struct FaceVault: Sendable {
     public enum Failure: Error, Equatable {
         case keychain(OSStatus)
@@ -48,16 +53,25 @@ public struct FaceVault: Sendable {
         }
     }
 
-    /// Stores `template`, replacing any previous one.
+    /// Stores `template`, replacing any previous one. The old template is replaced in
+    /// place, so a failed save never leaves the user with none.
     public func save(_ template: FaceTemplate) throws {
         let data = try JSONEncoder().encode(template)
-        try delete()
+
+        let update = SecItemUpdate(baseQuery as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        switch update {
+        case errSecSuccess:
+            return
+        case errSecItemNotFound:
+            break
+        default:
+            throw Failure.keychain(update)
+        }
 
         var item = baseQuery
         item[kSecValueData as String] = data
         item[kSecAttrLabel as String] = "Glazer face lock"
         item[kSecAttrDescription as String] = "Face signature used by Glazer to recognise you"
-        item[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
 
         let status = SecItemAdd(item as CFDictionary, nil)
         guard status == errSecSuccess else { throw Failure.keychain(status) }
@@ -74,7 +88,6 @@ public struct FaceVault: Sendable {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            kSecAttrSynchronizable as String: false,
         ]
     }
 }

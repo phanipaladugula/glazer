@@ -54,3 +54,27 @@ struct DisplayTests {
         #expect(display.shortName == expected)
     }
 }
+
+@Suite("Nearest display")
+struct NearestDisplayTests {
+    let displays = [
+        Display(id: 1, name: "Built-in", frame: CGRect(x: 0, y: 0, width: 1512, height: 982)),
+        Display(id: 2, name: "LG", frame: CGRect(x: 1512, y: 0, width: 2560, height: 1440)),
+    ]
+
+    @Test("A point inside a display is that display")
+    func inside() {
+        #expect(displays.display(nearest: CGPoint(x: 2000, y: 100))?.id == 2)
+    }
+
+    @Test("The top row of pixels, outside every half-open frame, is the display below it")
+    func topRow() {
+        #expect(displays.display(containing: CGPoint(x: 100, y: 982)) == nil)
+        #expect(displays.display(nearest: CGPoint(x: 100, y: 982))?.id == 1)
+    }
+
+    @Test("No displays, no display")
+    func none() {
+        #expect([Display]().display(nearest: .zero) == nil)
+    }
+}

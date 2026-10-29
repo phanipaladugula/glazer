@@ -93,12 +93,27 @@ struct UserTrackerTests {
         #expect(tracker.needsSignatures(at: 2))
     }
 
-    @Test("A followed face that fails a later check is dropped")
+    @Test("A followed face that fails three checks in a row is dropped")
     func reverificationFails() {
         var tracker = UserTracker(verifier: verifier)
         _ = tracker.update(with: frame(at: 0, face(signature: People.alice)))
 
-        #expect(tracker.update(with: frame(at: 2.1, face(signature: People.bob))) == .notRecognized)
+        #expect(tracker.update(with: frame(at: 2.1, face(signature: People.bob))) != .notRecognized)
+        #expect(tracker.update(with: frame(at: 2.2, face(signature: People.bob))) != .notRecognized)
+        #expect(tracker.update(with: frame(at: 2.3, face(signature: People.bob))) == .notRecognized)
+    }
+
+    @Test("One failed check, then a match, keeps the user")
+    func singleMismatchForgiven() {
+        var tracker = UserTracker(verifier: verifier)
+        let alice = face(signature: People.alice)
+        _ = tracker.update(with: frame(at: 0, alice))
+
+        _ = tracker.update(with: frame(at: 2.1, face(signature: People.bob)))
+        #expect(tracker.needsSignatures(at: 2.15))
+        _ = tracker.update(with: frame(at: 2.2, alice))
+        _ = tracker.update(with: frame(at: 4.3, face(signature: People.bob)))
+        #expect(tracker.update(with: frame(at: 4.4, face(signature: People.bob))) != .notRecognized)
     }
 
     @Test("Without face lock, signatures are never requested")

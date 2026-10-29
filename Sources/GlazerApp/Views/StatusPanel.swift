@@ -23,6 +23,15 @@ struct StatusPanel: View {
                 .padding(.horizontal, 10)
                 .padding(.bottom, 10)
                 .transition(.opacity.combined(with: .move(edge: .top)))
+            } else if case .running = model.condition, !model.hasAccessibilityAccess {
+                // Glazer runs, but without Accessibility only the pointer moves.
+                CalloutCard(text: "Allow Accessibility so the keyboard follows you too.", button: "Allow…") {
+                    AccessibilityAccess.request()
+                    SystemSettings.open(.accessibility)
+                }
+                .padding(.horizontal, 10)
+                .padding(.bottom, 10)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
             Divider()
@@ -65,7 +74,10 @@ struct StatusPanel: View {
         }
         .frame(width: 300)
         .animation(.easeOut(duration: 0.2), value: model.condition)
-        .onAppear { model.displayMonitor.start() }
+        .onAppear {
+            model.displayMonitor.start()
+            model.refreshPermissions()
+        }
         .onDisappear { model.displayMonitor.stop() }
     }
 
@@ -78,6 +90,10 @@ struct StatusPanel: View {
             SystemSettings.open(.camera)
         case .calibrate:
             model.calibrate()
+        case .retryFaceLock:
+            model.retryFaceLock()
+        case .retryCamera:
+            model.retryCamera()
         }
     }
 

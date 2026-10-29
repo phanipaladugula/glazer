@@ -81,8 +81,8 @@ struct SetupView: View {
         case .accessibility:
             SetupPage(
                 symbol: "accessibility", title: "Accessibility",
-                message: "To bring the window you were using on another display to the front, macOS asks "
-                    + "you to allow Glazer in Accessibility settings."
+                message: "Glazer needs this to bring the window you were using on the other display to the "
+                    + "front, and to wait while you type. Without it, only the pointer moves."
             ) {
                 PermissionStatus(
                     isGranted: model.hasAccessibilityAccess,
@@ -107,14 +107,18 @@ struct SetupView: View {
                         symbol: "display.2",
                         text: "Connect a second display to calibrate. You can do it later from the menu bar.")
                 } else if model.calibration?.covers(model.displays) == true {
-                    PermissionStatus(isGranted: true, grantedText: "Your displays are calibrated", action: nil)
+                    VStack(spacing: 10) {
+                        PermissionStatus(isGranted: true, grantedText: "Your displays are calibrated", action: nil)
+                        Button("Calibrate Again") { model.calibrate { _ in NSApp.activate() } }
+                            .buttonStyle(.link)
+                    }
                 }
             }
         case .faceLock:
             SetupPage(
                 symbol: "faceid", title: "Face lock",
-                message: "Optional. Glazer learns your face, so it follows only you even when other people "
-                    + "are in view. Your face signature stays in your Keychain on this Mac."
+                message: "Optional and experimental. Glazer learns your face, so it follows only you even "
+                    + "when other people are in view. Your face signature stays in your Keychain on this Mac."
             ) {
                 if model.isFaceLockOn {
                     PermissionStatus(isGranted: true, grantedText: "Face lock is on", action: nil)

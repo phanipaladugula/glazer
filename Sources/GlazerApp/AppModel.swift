@@ -28,6 +28,9 @@ final class AppModel {
         case cameraUnavailable
         case secondDisplayNeeded
         case calibrationNeeded
+        /// Face lock is set up, but its template couldn't be read from the Keychain, such
+        /// as when the user chose Deny. Glazer pauses rather than follow just anyone.
+        case faceLockUnavailable
     }
 
     // MARK: Settings
@@ -48,9 +51,19 @@ final class AppModel {
         }
     }
 
+    /// Whether Glazer opens at login. Reads back what macOS actually did, so the switch
+    /// never shows on when registering failed.
     var launchesAtLogin: Bool {
-        didSet { LaunchAtLogin.setEnabled(launchesAtLogin) }
+        get { launchAtLoginEnabled }
+        set {
+            LaunchAtLogin.setEnabled(newValue)
+            launchAtLoginEnabled = LaunchAtLogin.isEnabled
+            launchAtLoginNeedsApproval = LaunchAtLogin.needsApproval
+        }
     }
+    private var launchAtLoginEnabled = LaunchAtLogin.isEnabled
+    /// macOS registered the login item but wants the user to approve it in System Settings.
+    private(set) var launchAtLoginNeedsApproval = LaunchAtLogin.needsApproval
 
     private(set) var hasCompletedSetup: Bool
     private(set) var calibration: Calibration?
@@ -62,16 +75,28 @@ final class AppModel {
 
     // MARK: Face lock
 
-    /// The enrolled face, held in memory while Glazer runs. The only stored copy is in
-    /// the Keychain.
-    private(set) var faceTemplate: FaceTemplate?
+    enum FaceLockState: Equatable {
+        case off
+        /// A template is in the Keychain but hasn't been read yet. Reading it may make
+        /// macOS ask the user, so it waits until face lock is actually needed.
+        case stored
+        /// The template, held in memory while Glazer runs. The only stored copy is in the
+        /// Keychain.
+        case ready(FaceTemplate)
+        /// The template couldn't be read, such as when the user chose Deny.
+        case unreadable
+        /// The template came from an older version of Glazer and must be set up again.
+        case needsReenrolment
+    }
 
-    /// Set when the stored template came from an older version of Glazer and must be
-    /// enrolled again.
-    private(set) var faceLockNeedsReenrolment = false
+    private(set) var faceLock: FaceLockState = .off
 
     var isFaceLockOn: Bool {
-        faceTemplate != nil
+        faceLock != .off
+    }
+
+    var faceTemplate: FaceTemplate? {
+        if case .ready(let template) = faceLock { template } else { nil }
     }
 
     // MARK: Parts
@@ -83,6 +108,7 @@ final class AppModel {
     @ObservationIgnored private let preferences: Preferences
     @ObservationIgnored private let vault: FaceVault
     @ObservationIgnored private var toggleHotKey: HotKey?
+    @ObservationIgnored private var session: SessionMonitor?
     @ObservationIgnored private lazy var calibrationCoordinator = CalibrationCoordinator(gaze: gaze)
     private var isCalibrating = false
 
@@ -93,11 +119,12 @@ final class AppModel {
         switchDelay = preferences.switchDelay
         hasCompletedSetup = preferences.hasCompletedSetup
         calibration = preferences.calibration
-        launchesAtLogin = LaunchAtLogin.isEnabled
 
-        loadFaceTemplate()
+        // Only whether a template exists: that never makes macOS ask for the Keychain.
+        faceLock = vault.hasTemplate ? .stored : .off
         registerToggleShortcut()
         observeDisplays()
+        session = SessionMonitor { [weak self] in self?.refresh() }
         refresh()
     }
 
@@ -117,6 +144,7 @@ final class AppModel {
         if gaze.cameraFailure != nil { return .cameraUnavailable }
         if displays.count < 2 { return .secondDisplayNeeded }
         if calibration?.covers(displays) != true { return .calibrationNeeded }
+        if faceLock == .unreadable { return .faceLockUnavailable }
         return nil
     }
 
@@ -127,7 +155,7 @@ final class AppModel {
     /// The display to highlight in the panel: the one Glazer has focused while running,
     /// otherwise the one under the pointer.
     var highlightedDisplay: Display.ID? {
-        if case .running = condition, let focused = gaze.output?.focusedDisplay {
+        if case .running = condition, let focused = gaze.focusedDisplay {
             return focused
         }
         return displayMonitor.pointerDisplayID
@@ -148,9 +176,13 @@ final class AppModel {
         let camera = CameraAccess.current
         let accessibility = AccessibilityAccess.isGranted
         guard camera != cameraAccess || accessibility != hasAccessibilityAccess else { return }
+        let gainedAccessibility = accessibility && !hasAccessibilityAccess
         cameraAccess = camera
         hasAccessibilityAccess = accessibility
         refresh()
+        if gainedAccessibility {
+            gaze.restartTypingMonitor()
+        }
     }
 
     func requestCameraAccess() async {
@@ -171,6 +203,7 @@ final class AppModel {
             return
         }
         gaze.stop()
+        loadFaceTemplateIfNeeded()
         isCalibrating = true
         calibrationCoordinator.start(displays: displays, verifier: verifier) { [weak self] calibration in
             guard let self else { return }
@@ -197,8 +230,7 @@ final class AppModel {
     func finishFaceEnrolment(with template: FaceTemplate) throws {
         gaze.stop()
         try vault.save(template)
-        faceTemplate = template
-        faceLockNeedsReenrolment = false
+        faceLock = .ready(template)
         refresh()
     }
 
@@ -214,10 +246,10 @@ final class AppModel {
         do {
             try vault.delete()
         } catch {
-            Logger.app.error("Could not delete the face template: \(error)")
+            Logger.app.error("Could not delete the face template: \(String(describing: error), privacy: .public)")
             return false
         }
-        faceTemplate = nil
+        faceLock = .off
         refresh()
         return true
     }
@@ -228,27 +260,57 @@ final class AppModel {
         faceTemplate.map { IdentityVerifier(template: $0) }
     }
 
+    /// Reads the face lock template from the Keychain once it's needed, at most once per
+    /// launch. ``retryFaceLock()`` tries again.
+    private func loadFaceTemplateIfNeeded() {
+        guard faceLock == .stored else { return }
+        do {
+            if let template = try vault.load() {
+                faceLock = template.isCurrent ? .ready(template) : .needsReenrolment
+            } else {
+                faceLock = .off
+            }
+        } catch {
+            Logger.app.error("Could not read the face template: \(String(describing: error), privacy: .public)")
+            faceLock = .unreadable
+        }
+    }
+
+    /// Tries the camera again after it failed or stopped.
+    func retryCamera() {
+        refresh()
+    }
+
+    /// Tries reading the face lock template again, after it couldn't be read.
+    func retryFaceLock() {
+        if faceLock == .unreadable {
+            faceLock = .stored
+        }
+        refresh()
+    }
+
     /// Starts, updates or stops following to match the current state.
+    ///
+    /// It runs after anything that could change the answer: a setting, a permission, the
+    /// displays, the screen locking or waking, a camera being connected. Each run also
+    /// retries a camera that failed before.
     private func refresh() {
         guard !isCalibrating, gaze.mode != .enrolling else { return }
+        gaze.clearCameraFailure()
 
+        // Nobody is at the Mac: the screen is locked or asleep, or another user is in front.
+        if session?.isActive == false {
+            gaze.stop()
+            return
+        }
+
+        if isEnabled, attention == nil, calibration != nil {
+            loadFaceTemplateIfNeeded()
+        }
         if isEnabled, attention == nil, let calibration {
             gaze.follow(displays: displays, calibration: calibration, verifier: verifier, switchDelay: switchDelay)
         } else {
             gaze.stop()
-        }
-    }
-
-    private func loadFaceTemplate() {
-        do {
-            guard let template = try vault.load() else { return }
-            if template.isCurrent {
-                faceTemplate = template
-            } else {
-                faceLockNeedsReenrolment = true
-            }
-        } catch {
-            Logger.app.error("Could not read the face template: \(error)")
         }
     }
 
@@ -258,7 +320,6 @@ final class AppModel {
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.gaze.updateDisplays(self.displays)
                 self.refresh()
                 self.observeDisplays()
             }
