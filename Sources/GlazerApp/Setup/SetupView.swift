@@ -1,16 +1,30 @@
+import GlazerCore
 import GlazerSystem
 import SwiftUI
 
-/// The first-run setup window: permissions, calibration and, optionally, face lock.
+/// The first-run setup window: how to switch displays, permissions, and for the camera,
+/// calibration and, optionally, face lock.
 struct SetupView: View {
-    let model: AppModel
+    @Bindable var model: AppModel
 
     @State private var step = Step.welcome
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
 
-    enum Step: Int, CaseIterable {
-        case welcome, camera, accessibility, calibration, faceLock, done
+    enum Step: CaseIterable {
+        case welcome, method, camera, accessibility, calibration, faceLock, done
+    }
+
+    /// The steps for the chosen way of switching. Switching only by key needs no camera,
+    /// so it skips the camera, calibration and face lock.
+    private var steps: [Step] {
+        model.switchingMethod.usesCamera
+            ? Step.allCases
+            : [.welcome, .method, .accessibility, .done]
+    }
+
+    private var stepIndex: Int {
+        steps.firstIndex(of: step) ?? 0
     }
 
     var body: some View {
@@ -29,7 +43,7 @@ struct SetupView: View {
 
             Divider()
             HStack {
-                StepDots(current: step.rawValue, count: Step.allCases.count)
+                StepDots(current: stepIndex, count: steps.count)
                 Spacer()
                 if step != .welcome, step != .done {
                     Button("Back") { move(by: -1) }
@@ -38,7 +52,7 @@ struct SetupView: View {
             }
             .padding(16)
         }
-        .frame(width: 560, height: 460)
+        .frame(width: 560, height: 520)
         .animation(.smooth(duration: 0.3), value: step)
         .task {
             // Permissions have no change notifications, so check while setup is open.
@@ -58,13 +72,38 @@ struct SetupView: View {
             SetupPage(
                 symbol: nil, title: "Welcome to Glazer",
                 message: "Look at another display and start typing. Glazer moves the pointer and "
-                    + "keyboard focus to where you're looking."
+                    + "keyboard focus to where you're looking, or wherever a double-press of a key sends it."
             ) {
                 VStack(alignment: .leading, spacing: 14) {
-                    Feature(symbol: "rectangle.on.rectangle", text: "Follows which display your head is facing")
+                    Feature(symbol: "rectangle.on.rectangle", text: "Follows where you look, or a key you double-press")
                     Feature(symbol: "lock.laptopcomputer", text: "Runs entirely on this Mac. No network, ever")
                     Feature(symbol: "video.slash", text: "Never records or saves video")
                 }
+            }
+        case .method:
+            SetupPage(
+                symbol: "arrow.left.arrow.right", title: "How do you want to switch?",
+                message: "You can change this any time in Settings."
+            ) {
+                VStack(spacing: 8) {
+                    ForEach(SwitchingMethod.allCases, id: \.self) { method in
+                        MethodOption(method: method, isSelected: model.switchingMethod == method) {
+                            model.switchingMethod = method
+                        }
+                    }
+                    if model.switchingMethod.usesKey {
+                        Picker("Double-press", selection: $model.switchKey) {
+                            ForEach(SwitchKey.allCases, id: \.self) { key in
+                                Text(key.name).tag(key)
+                            }
+                        }
+                        .fixedSize()
+                        .padding(.top, 6)
+                        .help(model.switchKey.caveat ?? "")
+                    }
+                }
+                .frame(maxWidth: 420)
+                .animation(.smooth(duration: 0.25), value: model.switchingMethod)
             }
         case .camera:
             SetupPage(
@@ -81,8 +120,11 @@ struct SetupView: View {
         case .accessibility:
             SetupPage(
                 symbol: "accessibility", title: "Accessibility",
-                message: "Glazer needs this to bring the window you were using on the other display to the "
-                    + "front, and to wait while you type. Without it, only the pointer moves."
+                message: model.switchingMethod.usesCamera
+                    ? "Glazer needs this to move your typing to the display you look at, and to wait "
+                        + "while you type. Until it's allowed, Glazer stays paused."
+                    : "Glazer needs this to notice your double-press in any app, and to move your typing "
+                        + "to the next display. It only sees which modifier keys go up and down."
             ) {
                 PermissionStatus(
                     isGranted: model.hasAccessibilityAccess,
@@ -99,8 +141,9 @@ struct SetupView: View {
         case .calibration:
             SetupPage(
                 symbol: "scope", title: "Calibrate your displays",
-                message: "Glazer will ask you to look at each display in turn, so it learns which way "
-                    + "your head points for each one. It takes about ten seconds."
+                message: "Glazer shows a dot at the centre and corners of each display. Look at each dot "
+                    + "and click it, so Glazer learns where each display starts and ends. It takes about "
+                    + "half a minute."
             ) {
                 if model.displays.count < 2 {
                     Callout(
@@ -130,12 +173,18 @@ struct SetupView: View {
         case .done:
             SetupPage(
                 symbol: "checkmark.circle", title: "You're all set",
-                message: "Glazer lives in the menu bar. Press \(model.toggleShortcut.displayString) anywhere "
-                    + "to turn it on or off."
+                message: doneMessage
             ) {
                 EmptyView()
             }
         }
+    }
+
+    private var doneMessage: String {
+        let toggle = "Press \(model.toggleShortcut.displayString) anywhere to turn it on or off."
+        guard model.switchingMethod.usesKey else { return "Glazer lives in the menu bar. \(toggle)" }
+        return "Double-press \(model.switchKey.shortName) to jump to the next display. Glazer lives in the "
+            + "menu bar. \(toggle)"
     }
 
     private var cameraAction: (String, () -> Void)? {
@@ -182,7 +231,9 @@ struct SetupView: View {
     }
 
     private func move(by offset: Int) {
-        step = Step(rawValue: step.rawValue + offset) ?? step
+        let index = stepIndex + offset
+        guard steps.indices.contains(index) else { return }
+        step = steps[index]
     }
 
     private func open(_ window: String) {
@@ -237,6 +288,50 @@ private struct SetupPage<Accessory: View>: View {
                 .frame(width: 96, height: 96)
                 .accessibilityHidden(true)
         }
+    }
+}
+
+/// One way of switching, as a row that's selected by clicking it.
+private struct MethodOption: View {
+    let method: SwitchingMethod
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Image(systemName: method.symbol)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .frame(width: 22)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(method.title)
+                        .font(.body.weight(.medium))
+                    Text(method.detail)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
+                    .font(.system(size: 16))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isSelected ? AnyShapeStyle(.tint.opacity(0.1)) : AnyShapeStyle(.quinary))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(isSelected ? AnyShapeStyle(.tint.opacity(0.6)) : AnyShapeStyle(.clear))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }
 

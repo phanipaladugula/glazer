@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import GlazerCore
 import SwiftUI
 
@@ -39,6 +40,11 @@ final class CalibrationCoordinator {
             )
             let window = Self.makeWindow(for: screen, content: overlay)
             window.onCancel = { [weak self] in self?.escape() }
+            window.onSpace = { [weak session] in
+                guard let session, session.currentTarget != nil else { return false }
+                session.confirm()
+                return true
+            }
             windows.append(window)
         }
         NSApp.activate()
@@ -114,20 +120,36 @@ final class CalibrationCoordinator {
         window.hasShadow = false
         window.isReleasedWhenClosed = false
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        window.contentView = NSHostingView(rootView: content)
+        window.contentView = FirstClickHostingView(rootView: content)
         window.setFrame(screen.frame, display: true)
         window.orderFrontRegardless()
         return window
     }
 }
 
-/// A borderless window that can take key focus, so Escape cancels calibration.
+/// A borderless window that can take key focus, so Escape cancels calibration and Space
+/// records the current dot.
 private final class OverlayWindow: NSWindow {
     var onCancel: (() -> Void)?
+    /// Returns whether it used the Space key press.
+    var onSpace: (() -> Bool)?
 
     override var canBecomeKey: Bool { true }
 
     override func cancelOperation(_ sender: Any?) {
         onCancel?()
     }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown, event.keyCode == UInt16(kVK_Space), !event.isARepeat, onSpace?() == true {
+            return
+        }
+        super.sendEvent(event)
+    }
+}
+
+/// Takes the first click, so a dot on a display whose overlay isn't the key window records
+/// on the first click rather than only bringing the window forward.
+private final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }

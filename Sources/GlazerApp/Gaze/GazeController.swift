@@ -39,7 +39,7 @@ final class GazeController {
     }
 
     @ObservationIgnored let camera = CameraFeed()
-    @ObservationIgnored private let focus = FocusController()
+    @ObservationIgnored private let focus: FocusController
     @ObservationIgnored private let typing = TypingMonitor()
     @ObservationIgnored private var typingGuard = TypingGuard(focusedDisplay: nil)
     @ObservationIgnored private var engine: GazeEngine?
@@ -61,6 +61,10 @@ final class GazeController {
     /// pointer. A switch held back while the user types doesn't change it.
     private(set) var focusedDisplay: Display.ID?
 
+    init(focus: FocusController) {
+        self.focus = focus
+    }
+
     // MARK: Modes
 
     /// Follows the user and moves focus between `displays`.
@@ -78,6 +82,9 @@ final class GazeController {
 
         var classification = DisplayClassifier.Configuration()
         classification.dwell = switchDelay
+        // Weight head turn and tilt by how the displays are arranged: stacked displays are
+        // told apart by tilt, side-by-side ones by turn.
+        classification.weights = AxisWeights(arranging: displays)
         // Only connected displays can be chosen: a disconnected display's calibration
         // point would otherwise send focus nowhere.
         var engine = GazeEngine(
@@ -207,6 +214,18 @@ final class GazeController {
         focusedDisplay = current
         engine?.userFocused(current)
         typingGuard.userFocused(current)
+    }
+
+    /// Moves focus to `target` because the user asked to, such as with the switch key.
+    /// Focus stays there until the user turns their head to another display.
+    @discardableResult
+    func switchManually(to target: Display.ID) -> Bool {
+        guard focus.focus(target, leaving: pointerDisplay) else { return false }
+        pointerDisplay = target
+        focusedDisplay = target
+        engine?.userFocused(target)
+        typingGuard.userFocused(target)
+        return true
     }
 
     /// Moves focus to the display the user faces, once they aren't typing.

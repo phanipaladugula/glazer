@@ -10,6 +10,7 @@ struct ConditionPresentation {
         case calibrate
         case retryFaceLock
         case retryCamera
+        case openAccessibilitySettings
     }
 
     /// The panel's status line.
@@ -39,10 +40,14 @@ struct ConditionPresentation {
                 callout: nil)
         case .running(.notRecognized):
             self.init("Face not recognised", symbol: "eye", active: true)
+        case .listening(let key):
+            self.init("Press \(key.shortName) twice to switch", symbol: "keyboard", active: true)
         case .attention(.setupNeeded):
             self.init(
                 "Not set up yet", symbol: "eye.trianglebadge.exclamationmark", active: false,
-                callout: ("Allow the camera and calibrate your displays to get started.", "Set Up…", .openSetup))
+                callout: (
+                    "Choose how to switch displays, and Glazer walks you through the rest.", "Set Up…", .openSetup
+                ))
         case .attention(.cameraDenied):
             self.init(
                 "Camera access is off", symbol: "eye.trianglebadge.exclamationmark", active: false,
@@ -65,6 +70,13 @@ struct ConditionPresentation {
                 callout: (
                     "Glazer couldn't read your face lock from the Keychain, so it's paused rather than "
                         + "following just anyone.", "Try Again", .retryFaceLock
+                ))
+        case .attention(.accessibilityNeeded):
+            self.init(
+                "Needs Accessibility", symbol: "eye.trianglebadge.exclamationmark", active: false,
+                callout: (
+                    "Glazer needs Accessibility to move your typing to the display you switch to. If Glazer is "
+                        + "already listed, switch it off and on again.", "Open Settings…", .openAccessibilitySettings
                 ))
         case .attention(.calibrationNeeded):
             self.init(

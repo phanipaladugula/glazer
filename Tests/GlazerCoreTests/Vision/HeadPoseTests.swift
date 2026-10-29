@@ -11,4 +11,11 @@ struct HeadPoseTests {
         #expect(a.distance(to: b) == (9.0 + 64.0).squareRoot())
         #expect(a.distance(to: b, pitchWeight: 0.5) == 5)
     }
+
+    @Test("Weighted distance scales each axis")
+    func weightedDistance() {
+        let a = HeadPose(yaw: 0, pitch: 0)
+        let b = HeadPose(yaw: 6, pitch: 4)
+        #expect(a.distance(to: b, weights: AxisWeights(yaw: 0.5, pitch: 1)) == 5)
+    }
 }

@@ -53,32 +53,38 @@ private struct GeneralSettings: View {
             }
 
             Section {
-                VStack(alignment: .leading, spacing: 6) {
-                    LabeledContent("Switch after") {
-                        Text(model.switchDelay, format: .number.precision(.fractionLength(1)))
-                            .monospacedDigit()
-                            + Text(" s")
+                Picker("Switch displays by", selection: $model.switchingMethod) {
+                    ForEach(SwitchingMethod.allCases, id: \.self) { method in
+                        Text(method.title).tag(method)
                     }
-                    Slider(value: $model.switchDelay, in: Preferences.switchDelayRange, step: 0.1) {
-                        EmptyView()
-                    } minimumValueLabel: {
-                        Text("Quick").font(.caption).foregroundStyle(.secondary)
-                    } maximumValueLabel: {
-                        Text("Steady").font(.caption).foregroundStyle(.secondary)
+                }
+                if model.switchingMethod.usesKey {
+                    Picker("Double-press", selection: $model.switchKey) {
+                        ForEach(SwitchKey.allCases, id: \.self) { key in
+                            Text(key.name).tag(key)
+                        }
                     }
                 }
             } footer: {
-                Text(
-                    "How long you face another display before the pointer and keyboard move there. "
-                        + "Longer means quick glances never switch.")
+                if model.switchingMethod.usesKey, let caveat = model.switchKey.caveat {
+                    Text("\(model.switchingMethod.detail) \(caveat)")
+                } else {
+                    Text(model.switchingMethod.detail)
+                }
+            }
+
+            if model.switchingMethod.usesCamera {
+                switchDelaySection
             }
 
             Section("Permissions") {
-                PermissionRow(
-                    title: "Camera",
-                    isGranted: model.cameraAccess == .granted,
-                    action: { SystemSettings.open(.camera) }
-                )
+                if model.switchingMethod.usesCamera {
+                    PermissionRow(
+                        title: "Camera",
+                        isGranted: model.cameraAccess == .granted,
+                        action: { SystemSettings.open(.camera) }
+                    )
+                }
                 PermissionRow(
                     title: "Accessibility",
                     isGranted: model.hasAccessibilityAccess,
@@ -91,6 +97,30 @@ private struct GeneralSettings: View {
         }
         .formStyle(.grouped)
         .frame(height: 430)
+        .animation(.smooth(duration: 0.25), value: model.switchingMethod)
+    }
+
+    private var switchDelaySection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 6) {
+                LabeledContent("Switch after") {
+                    Text(model.switchDelay, format: .number.precision(.fractionLength(1)))
+                        .monospacedDigit()
+                        + Text(" s")
+                }
+                Slider(value: $model.switchDelay, in: Preferences.switchDelayRange, step: 0.1) {
+                    EmptyView()
+                } minimumValueLabel: {
+                    Text("Quick").font(.caption).foregroundStyle(.secondary)
+                } maximumValueLabel: {
+                    Text("Steady").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        } footer: {
+            Text(
+                "How long you face another display before the pointer and keyboard move there. "
+                    + "Longer means quick glances never switch.")
+        }
     }
 }
 
@@ -123,32 +153,59 @@ private struct DisplaySettings: View {
                     .padding(.vertical, 8)
             }
 
-            Section {
-                ForEach(model.displays) { display in
-                    LabeledContent(display.name) {
-                        if model.calibration?.pose(for: display.id) != nil {
-                            Label("Calibrated", systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                        } else {
-                            Label("Not calibrated", systemImage: "exclamationmark.circle")
-                                .foregroundStyle(.orange)
+            if model.switchingMethod.usesCamera {
+                Section {
+                    ForEach(model.displays) { display in
+                        LabeledContent(display.name) {
+                            calibrationStatus(for: display)
                         }
                     }
+                } footer: {
+                    Text(
+                        "Calibrate again after moving a display, or if Glazer picks the wrong one. "
+                            + "You look at and click a dot at the centre and corners of each display.")
                 }
-            } footer: {
-                Text("Calibrate again after moving a display, or if Glazer picks the wrong one.")
-            }
 
-            Section {
-                HStack {
-                    Spacer()
-                    Button("Calibrate Displays…") { model.calibrate() }
-                        .disabled(!model.canCalibrate)
+                Section {
+                    HStack {
+                        Spacer()
+                        Button("Calibrate Displays…") { model.calibrate() }
+                            .disabled(!model.canCalibrate)
+                    }
+                }
+            } else {
+                Section {
+                    LabeledContent("Next display") {
+                        Text("Double-press \(model.switchKey.shortName)")
+                            .foregroundStyle(.secondary)
+                    }
+                } footer: {
+                    Text(
+                        "Each double-press moves to the next display, top to bottom, then left to right. "
+                            + "Calibration is only needed when Glazer follows where you look.")
                 }
             }
         }
         .formStyle(.grouped)
         .frame(height: 430)
+    }
+
+    @ViewBuilder
+    private func calibrationStatus(for display: Display) -> some View {
+        if let calibration = model.calibration, calibration.pose(for: display.id) != nil {
+            if calibration.hasCorners {
+                Label("Calibrated", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else {
+                // Calibrated by Glazer 0.1, at the centre only.
+                Label("Centre only", systemImage: "checkmark.circle")
+                    .foregroundStyle(.secondary)
+                    .help("Calibrate again to add the corners, so Glazer knows where each display ends.")
+            }
+        } else {
+            Label("Not calibrated", systemImage: "exclamationmark.circle")
+                .foregroundStyle(.orange)
+        }
     }
 }
 
@@ -334,10 +391,15 @@ private struct DiagnosticsSettings: View {
             }
             if let calibration = model.calibration {
                 Section("Calibration") {
-                    ForEach(calibration.points, id: \.displayID) { point in
-                        Reading(
-                            displayName(point.displayID),
-                            value: "\(degrees(point.pose.yaw)) yaw, \(degrees(point.pose.pitch)) pitch")
+                    ForEach(calibration.displayIDs, id: \.self) { id in
+                        if let centre = calibration.pose(for: id) {
+                            Reading(
+                                displayName(id),
+                                value: "\(degrees(centre.yaw)) yaw, \(degrees(centre.pitch)) pitch")
+                        }
+                        if calibration.hasCorners, let region = calibration.region(for: id) {
+                            Reading("  Spans", value: span(of: region))
+                        }
                     }
                 }
             }
@@ -348,6 +410,13 @@ private struct DiagnosticsSettings: View {
 
     private func degrees(_ value: Double?) -> String {
         value.map { "\($0.formatted(.number.precision(.fractionLength(1))))°" } ?? "—"
+    }
+
+    /// The range of yaw and pitch a display's corners cover.
+    private func span(of region: PoseRegion) -> String {
+        let yaws = region.vertices.map(\.yaw), pitches = region.vertices.map(\.pitch)
+        return
+            "\(degrees(yaws.min()))…\(degrees(yaws.max())) yaw, \(degrees(pitches.min()))…\(degrees(pitches.max())) pitch"
     }
 
     private func displayName(_ id: Display.ID?) -> String {

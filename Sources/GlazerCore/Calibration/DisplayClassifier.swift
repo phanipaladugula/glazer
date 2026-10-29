@@ -2,9 +2,12 @@ import Foundation
 
 /// Decides which display the user is facing, and when to switch.
 ///
-/// The nearest calibrated pose wins, but only after a margin and a dwell time: the new
-/// display must be clearly nearer than the current one, for long enough that it isn't a
-/// glance. Looking far away from every display, such as down at a phone, changes nothing.
+/// The nearest display wins, but only after a margin and a dwell time: the new display must
+/// be clearly nearer than the current one, for long enough that it isn't a glance. Looking
+/// far away from every display, such as down at a phone, changes nothing.
+///
+/// A display's distance is to the region its centre and corner poses span, so facing
+/// anywhere on it counts as facing it. Where regions overlap, the nearer centre decides.
 public struct DisplayClassifier: Sendable {
     public struct Configuration: Sendable {
         /// How long the user must face another display before focus moves.
@@ -13,14 +16,16 @@ public struct DisplayClassifier: Sendable {
         public var margin: Double = 3
         /// Poses further than this, in degrees, from every display are ignored.
         public var maximumDistance: Double = 40
-        /// The weight of pitch relative to yaw. See ``HeadPose/distance(to:pitchWeight:)``.
-        public var pitchWeight: Double = 0.6
+        /// How much head turn and head tilt count. Set from the display arrangement; see
+        /// ``AxisWeights/init(arranging:floor:)``.
+        public var weights = AxisWeights.sideBySide
 
         public init() {}
     }
 
     public var configuration: Configuration
     public let calibration: Calibration
+    private let regions: [(id: Display.ID, region: PoseRegion, centre: HeadPose)]
 
     /// The display the user is facing, once decided.
     public private(set) var focused: Display.ID?
@@ -36,15 +41,23 @@ public struct DisplayClassifier: Sendable {
     public init(calibration: Calibration, configuration: Configuration = Configuration()) {
         self.calibration = calibration
         self.configuration = configuration
+        regions = calibration.displayIDs.compactMap { id in
+            guard let region = calibration.region(for: id), let centre = calibration.pose(for: id) else { return nil }
+            return (id, region, centre)
+        }
     }
 
     /// Adds a pose and returns the display in focus, which may have just changed.
     @discardableResult
     public mutating func update(with pose: HeadPose, at timestamp: TimeInterval) -> Display.ID? {
-        let distances = calibration.points.map {
-            (id: $0.displayID, distance: pose.distance(to: $0.pose, pitchWeight: configuration.pitchWeight))
+        let weights = configuration.weights
+        let distances = regions.map {
+            (
+                id: $0.id, distance: $0.region.distance(to: pose, weights: weights),
+                centre: pose.distance(to: $0.centre, weights: weights)
+            )
         }
-        guard let nearest = distances.min(by: { $0.distance < $1.distance }),
+        guard let nearest = distances.min(by: { ($0.distance, $0.centre) < ($1.distance, $1.centre) }),
             nearest.distance <= configuration.maximumDistance
         else {
             candidate = nil

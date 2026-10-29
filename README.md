@@ -28,6 +28,7 @@ Look at the other screen and start typing. Glazer moves the pointer and keyboard
 - [Privacy](#privacy)
 - [Install](#install)
 - [Getting started](#getting-started)
+- [Switch with a key](#switch-with-a-key)
 - [Face lock](#face-lock)
 - [Troubleshooting](#troubleshooting)
 - [Roadmap](#roadmap)
@@ -40,6 +41,7 @@ across and clicking into the right window, dozens of times a day. Glazer removes
 step. Turn to the other display and keep typing.
 
 - **Hands-free focus switching.** The pointer and keyboard focus go to the window you were last using on the display you face.
+- **Or switch with a key.** Prefer no camera? Double-press **fn** (or a right-hand modifier) to jump to the next display. Use it alone, or alongside the camera.
 - **Follows only you.** It ignores people walking past or sitting behind you. With face lock on, it follows only your face.
 - **Ignores glances.** A switch happens only after you've faced the other display for a moment, and looking down at your phone changes nothing.
 - **Never switches while you type.** Keep typing while you look at notes or talk to someone, and your words stay put. Pause for a second while facing the other display, and it's ready for you.
@@ -59,7 +61,7 @@ Webcams can't reliably tell the exact spot you're looking at. Glazer answers an 
 question that's enough to pick a display: **which display is your head facing?**
 
 1. **Measure.** The camera sees your face, and Apple's Vision framework measures which way your head is turned (yaw and pitch).
-2. **Calibrate.** You look at each display once, and Glazer records the angle for each.
+2. **Calibrate.** You look at and click a dot at the centre and each corner of every display, and Glazer records where your head points for each, so it knows where one display ends and the next begins.
 3. **Decide.** When you face another display, clearly and for half a second, Glazer moves the pointer there and brings back the window you last used on it.
 
 Glazer pauses rather than guesses. If the room is too dark, no one is in view, or (with face
@@ -74,7 +76,7 @@ Glazer uses your camera, so it holds itself to a strict standard:
 |---|---|
 | **On your Mac only** | Frames are analysed with Apple's Vision framework and discarded immediately. Glazer makes no network requests at all. |
 | **No recordings** | No video, photos or screenshots are ever saved. Window titles and screen contents are never read. |
-| **Camera off when idle** | The camera runs only while Glazer is on and you have two displays. The camera light always tells you. |
+| **Camera off when idle** | The camera runs only while Glazer is on, set to follow where you look, and you have two displays. Switching by key never turns it on. The camera light always tells you. |
 | **Face lock in the Keychain** | Your face signature is a list of numbers, not a photo. It's kept in your login keychain and never synced to iCloud, and setting it up or deleting it in Glazer needs Touch ID. |
 
 Read the full [privacy statement](docs/PRIVACY.md). Glazer is open source and has no
@@ -132,21 +134,38 @@ curl -fsSL https://raw.githubusercontent.com/phanipaladugula/glazer/main/install
 
 The first time Glazer opens, a short setup walks you through:
 
-1. **Camera.** Allow access so Glazer can see which way you're facing.
-2. **Accessibility.** Allow it so Glazer can bring the right window to the front. Glazer still moves the pointer without it.
-3. **Calibration.** Look at each display as it lights up, about ten seconds in all.
-4. **Face lock** *(optional).* Glazer learns your face, so it follows only you.
+1. **How to switch.** Where you look, double-pressing a key, or both.
+2. **Camera.** Allow access so Glazer can see which way you're facing. *(Skipped when you switch by key only.)*
+3. **Accessibility.** Allow it so Glazer can bring the right window to the front, and hear your double-press in any app.
+4. **Calibration.** Look at and click the dot at the centre and corners of each display, about half a minute in all.
+5. **Face lock** *(optional).* Glazer learns your face, so it follows only you.
 
 After that, Glazer lives in the menu bar.
 
 | Action | How |
 |---|---|
 | Turn Glazer on or off | Click the eye in the menu bar, or press **⌥⌘G** anywhere |
+| Jump to the next display | Double-press **fn** (when switching by key is on) |
+| Choose camera, key or both | **Settings › General › Switch displays by** |
 | Recalibrate after moving a display | Menu bar › **Calibrate Displays…** |
 | Change how quickly it switches | **Settings › General › Switch after** |
 | See what Glazer sees | **Settings › Diagnostics** (live numbers, never images) |
 
 <br clear="right">
+
+## Switch with a key
+
+Not every moment suits a camera: a dark room, a video call, or simply preferring not to
+use one. In **Settings › General**, choose to switch displays by:
+
+- **Where I look:** the camera follows which display you face.
+- **Double-pressing a key:** each double-press moves the pointer and keyboard to the next display, top to bottom, then left to right. The camera stays off.
+- **Both:** Glazer follows where you look, and a double-press jumps straight away. The key keeps working if the camera can't see you.
+
+The key is **fn / 🌐** by default, or right ⌥ Option, right ⌘ Command, right ⌃ Control or
+right ⇧ Shift. Pressing the key with any other key, or holding it, never counts. Glazer
+sees only which modifier keys go up and down, never what you type. If macOS Dictation is
+set to start on a double-press of fn, pick another key.
 
 ## Face lock
 
@@ -188,9 +207,10 @@ to the other should change it smoothly by 20° or more. Nothing is recorded.
 <details>
 <summary><b>It picks the wrong display</b></summary>
 
-Recalibrate from the menu bar. Turn your **head** towards each display while calibrating,
-not just your eyes. If your displays sit very close together, try angling them apart a
-little.
+Recalibrate from the menu bar. Turn your **head** towards each dot while calibrating,
+not just your eyes. Calibrations from Glazer 0.1 recorded only the centre of each display;
+calibrating again adds the corners, which helps most near the edge between displays. If
+your displays sit very close together, try angling them apart a little.
 </details>
 
 <details>
@@ -252,12 +272,14 @@ The uninstall command does all of this, and removes the face lock item too.
 
 - [x] Menu bar app, display map and global shortcut
 - [x] Head direction from the camera, following only the person at the Mac
-- [x] Calibration, and moving the pointer and keyboard focus
+- [x] Calibration at the centre and corners of each display, and moving the pointer and keyboard focus
+- [x] Switching by double-pressing a key, with or without the camera
 - [x] Low-light detection
 - [x] Face lock, stored in the login keychain, set up and deleted with Touch ID
 - [x] One-line install from GitHub releases, universal for Apple silicon and Intel
 - [ ] Developer ID signing and notarisation, Homebrew cask
-- [ ] Three or more displays in a row, and stacked displays
+- [x] Stacked displays
+- [ ] Three or more displays in a row
 - [ ] Optional iPhone companion that uses Face ID's infrared camera for dark rooms
 
 ## Contributing

@@ -23,15 +23,19 @@ public final class FocusController {
     public func focus(_ display: Display.ID, leaving previous: Display.ID?) -> Bool {
         guard NSEvent.pressedMouseButtons == 0 else { return false }
 
+        let bounds = CGDisplayBounds(display)
+        let window = Self.frontmostWindow(on: bounds)
+
+        // Keyboard focus first, and the pointer only if it moved: a pointer on one display
+        // with typing still going to the other is worse than not switching at all.
+        if let window, !activate(window) {
+            Logger.focus.error("Keyboard focus didn't move to display \(display, privacy: .public)")
+            return false
+        }
+
         let pointer = Self.pointerLocation()
         if let previous {
             pointerPositions[previous] = pointer
-        }
-
-        let bounds = CGDisplayBounds(display)
-        let window = Self.frontmostWindow(on: bounds)
-        if let window {
-            activate(window)
         }
 
         let target =
@@ -84,15 +88,15 @@ public final class FocusController {
         return nil
     }
 
-    /// Brings `window` to the front and makes it key.
+    /// Brings `window` to the front and makes it key, and returns whether its app is now
+    /// frontmost, so typing goes to it.
     ///
-    /// With Accessibility access, the exact window is raised and its app made frontmost.
-    /// Without it, the app is asked to activate, which macOS may decline.
-    private func activate(_ window: WindowInfo) {
-        guard AccessibilityAccess.isGranted else {
-            NSRunningApplication(processIdentifier: window.processID)?.activate()
-            return
-        }
+    /// This needs Accessibility access. Without it, the only option is asking the app to
+    /// activate, which macOS ignores unless Glazer itself is the active app. That's true
+    /// just after setup and almost never after, so typing would stay behind while the
+    /// pointer moved. Callers should pause rather than rely on that.
+    private func activate(_ window: WindowInfo) -> Bool {
+        guard AccessibilityAccess.isGranted else { return false }
 
         let application = AXUIElementCreateApplication(window.processID)
         if let element = Self.accessibilityWindow(of: application, matching: window.bounds) {
@@ -100,9 +104,21 @@ public final class FocusController {
             AXUIElementSetAttributeValue(element, kAXMainAttribute as CFString, kCFBooleanTrue)
         }
         let result = AXUIElementSetAttributeValue(application, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
-        if result != .success {
-            Logger.focus.error("Could not bring app \(window.processID) to the front: \(result.rawValue)")
+        guard result == .success else {
+            Logger.focus.error(
+                "Couldn't bring app \(window.processID, privacy: .public) to the front: \(result.rawValue, privacy: .public)"
+            )
+            return false
         }
+        return Self.isFrontmost(application)
+    }
+
+    /// Whether `application` reports itself frontmost, read back through Accessibility.
+    private static func isFrontmost(_ application: AXUIElement) -> Bool {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(application, kAXFrontmostAttribute as CFString, &value) == .success
+        else { return false }
+        return (value as? Bool) == true
     }
 
     /// The Accessibility element of `application`'s window whose frame matches `bounds`.

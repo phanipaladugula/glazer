@@ -6,9 +6,9 @@ import Observation
 
 /// The app's state, shared by the menu bar, the windows and the overlays.
 ///
-/// It decides when the camera runs: only while Glazer is on, set up, allowed to use the
-/// camera, and calibrated for at least two connected displays. The rest of the time the
-/// camera is off.
+/// It decides when the camera runs: only while Glazer is on, set up to switch with the
+/// camera, allowed to use it, and calibrated for at least two connected displays. The rest
+/// of the time the camera is off. It also decides when the switch key is listened for.
 @MainActor
 @Observable
 final class AppModel {
@@ -19,6 +19,8 @@ final class AppModel {
         case calibrating
         case enrollingFace
         case running(GazeEngine.Status)
+        /// Switching by key only: waiting for the user to double-press `SwitchKey`.
+        case listening(SwitchKey)
     }
 
     /// Something that stops Glazer from following, and what the user can do about it.
@@ -31,6 +33,9 @@ final class AppModel {
         /// Face lock is set up, but its template couldn't be read from the Keychain, such
         /// as when the user chose Deny. Glazer pauses rather than follow just anyone.
         case faceLockUnavailable
+        /// Without Accessibility, Glazer can move the pointer but not the keyboard, which
+        /// sends typing to the display the user isn't looking at. So it pauses instead.
+        case accessibilityNeeded
     }
 
     // MARK: Settings
@@ -39,6 +44,22 @@ final class AppModel {
     var isEnabled: Bool {
         didSet {
             preferences.isEnabled = isEnabled
+            refresh()
+        }
+    }
+
+    /// Whether displays switch by the camera, by double-pressing a key, or both.
+    var switchingMethod: SwitchingMethod {
+        didSet {
+            preferences.switchingMethod = switchingMethod
+            refresh()
+        }
+    }
+
+    /// The key double-pressed to switch displays.
+    var switchKey: SwitchKey {
+        didSet {
+            preferences.switchKey = switchKey
             refresh()
         }
     }
@@ -102,20 +123,32 @@ final class AppModel {
     // MARK: Parts
 
     let displayMonitor = DisplayMonitor()
-    let gaze = GazeController()
+    let gaze: GazeController
     let toggleShortcut = KeyboardShortcut.toggle
 
     @ObservationIgnored private let preferences: Preferences
     @ObservationIgnored private let vault: FaceVault
+    /// Moves the pointer and keyboard. Shared by the camera and the switch key, so both
+    /// remember the same pointer position on each display.
+    @ObservationIgnored private let focus: FocusController
+    @ObservationIgnored private let doublePress = DoublePressMonitor()
+    /// The key the double-press monitor listens for, while it's running.
+    @ObservationIgnored private var listeningKey: SwitchKey?
     @ObservationIgnored private var toggleHotKey: HotKey?
     @ObservationIgnored private var session: SessionMonitor?
+    @ObservationIgnored private var permissionTimer: Timer?
     @ObservationIgnored private lazy var calibrationCoordinator = CalibrationCoordinator(gaze: gaze)
     private var isCalibrating = false
 
     init(preferences: Preferences = Preferences(), vault: FaceVault = FaceVault()) {
         self.preferences = preferences
         self.vault = vault
+        let focus = FocusController()
+        self.focus = focus
+        gaze = GazeController(focus: focus)
         isEnabled = preferences.isEnabled
+        switchingMethod = preferences.switchingMethod
+        switchKey = preferences.switchKey
         switchDelay = preferences.switchDelay
         hasCompletedSetup = preferences.hasCompletedSetup
         calibration = preferences.calibration
@@ -125,7 +158,18 @@ final class AppModel {
         registerToggleShortcut()
         observeDisplays()
         session = SessionMonitor { [weak self] in self?.refresh() }
+        watchPermissions()
         refresh()
+    }
+
+    /// Permissions have no change notifications, and Accessibility can stop working
+    /// without the user touching it (after an update, macOS may keep the switch on in
+    /// System Settings while no longer trusting the new build). Both checks are cheap, so
+    /// they run every couple of seconds; nothing happens unless one changes.
+    private func watchPermissions() {
+        permissionTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshPermissions() }
+        }
     }
 
     // MARK: Condition
@@ -135,17 +179,29 @@ final class AppModel {
         if gaze.mode == .enrolling { return .enrollingFace }
         if !isEnabled { return .off }
         if let attention { return .attention(attention) }
+        if !switchingMethod.usesCamera { return .listening(switchKey) }
         return .running(gaze.output?.status ?? .searching)
     }
 
+    /// The first thing stopping Glazer. The camera's needs count only when it switches
+    /// with the camera.
     private var attention: Attention? {
-        if !hasCompletedSetup || cameraAccess == .notDetermined { return .setupNeeded }
-        if cameraAccess != .granted { return .cameraDenied }
-        if gaze.cameraFailure != nil { return .cameraUnavailable }
+        let usesCamera = switchingMethod.usesCamera
+        if !hasCompletedSetup || (usesCamera && cameraAccess == .notDetermined) { return .setupNeeded }
+        if usesCamera, cameraAccess != .granted { return .cameraDenied }
+        if usesCamera, gaze.cameraFailure != nil { return .cameraUnavailable }
         if displays.count < 2 { return .secondDisplayNeeded }
-        if calibration?.covers(displays) != true { return .calibrationNeeded }
-        if faceLock == .unreadable { return .faceLockUnavailable }
+        if usesCamera, calibration?.covers(displays) != true { return .calibrationNeeded }
+        if usesCamera, faceLock == .unreadable { return .faceLockUnavailable }
+        if !hasAccessibilityAccess { return .accessibilityNeeded }
         return nil
+    }
+
+    /// Whether the switch key is listened for. It doesn't wait on the camera: in
+    /// ``SwitchingMethod/both`` the key keeps working while the camera can't.
+    private var shouldListenForKey: Bool {
+        isEnabled && hasCompletedSetup && switchingMethod.usesKey && hasAccessibilityAccess
+            && displays.count >= 2 && !isCalibrating && session?.isActive != false
     }
 
     var displays: [Display] {
@@ -179,6 +235,11 @@ final class AppModel {
         let gainedAccessibility = accessibility && !hasAccessibilityAccess
         cameraAccess = camera
         hasAccessibilityAccess = accessibility
+        if gainedAccessibility {
+            // macOS only delivers other apps' keys to monitors added while Glazer is
+            // trusted, so the key monitor starts again.
+            stopListeningForKey()
+        }
         refresh()
         if gainedAccessibility {
             gaze.restartTypingMonitor()
@@ -188,6 +249,20 @@ final class AppModel {
     func requestCameraAccess() async {
         cameraAccess = await CameraAccess.request()
         refresh()
+    }
+
+    /// Moves the pointer and keyboard to the next display, in reading order. The switch
+    /// key calls it.
+    func switchToNextDisplay() {
+        let current = gaze.focusedDisplay ?? displayMonitor.pointerDisplayID
+        guard let target = displays.display(after: current)?.id else { return }
+        if gaze.mode == .following {
+            // The engine learns the user moved focus themselves, so it doesn't pull focus
+            // straight back to the display they face.
+            gaze.switchManually(to: target)
+        } else {
+            _ = focus.focus(target, leaving: current)
+        }
     }
 
     func completeSetup() {
@@ -205,6 +280,7 @@ final class AppModel {
         gaze.stop()
         loadFaceTemplateIfNeeded()
         isCalibrating = true
+        stopListeningForKey()
         calibrationCoordinator.start(displays: displays, verifier: verifier) { [weak self] calibration in
             guard let self else { return }
             isCalibrating = false
@@ -296,6 +372,7 @@ final class AppModel {
     /// retries a camera that failed before.
     private func refresh() {
         guard !isCalibrating, gaze.mode != .enrolling else { return }
+        updateKeyListening()
         gaze.clearCameraFailure()
 
         // Nobody is at the Mac: the screen is locked or asleep, or another user is in front.
@@ -304,14 +381,32 @@ final class AppModel {
             return
         }
 
-        if isEnabled, attention == nil, calibration != nil {
+        let followsWithCamera = isEnabled && switchingMethod.usesCamera && attention == nil
+        if followsWithCamera, calibration != nil {
             loadFaceTemplateIfNeeded()
         }
-        if isEnabled, attention == nil, let calibration {
+        if followsWithCamera, attention == nil, let calibration {
             gaze.follow(displays: displays, calibration: calibration, verifier: verifier, switchDelay: switchDelay)
         } else {
             gaze.stop()
         }
+    }
+
+    private func updateKeyListening() {
+        guard shouldListenForKey else {
+            stopListeningForKey()
+            return
+        }
+        guard listeningKey != switchKey else { return }
+        listeningKey = switchKey
+        doublePress.start(key: switchKey) { [weak self] in
+            self?.switchToNextDisplay()
+        }
+    }
+
+    private func stopListeningForKey() {
+        doublePress.stop()
+        listeningKey = nil
     }
 
     private func observeDisplays() {

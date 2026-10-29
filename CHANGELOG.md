@@ -6,8 +6,19 @@ All notable changes to Glazer are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-29
+
 ### Added
 
+- Switch displays by double-pressing a key. In Setup or **Settings › General**, choose to
+  switch by where you look, by double-pressing a key, or both. The key is fn / 🌐 by
+  default, or a right-hand ⌥, ⌘, ⌃ or ⇧. Each double-press moves the pointer and
+  keyboard to the next display. Switching by key alone never turns on the camera, and
+  Glazer reads only which modifier keys go up and down, never what you type.
+- Calibration with dots at the centre and corners of each display. Look at each dot and
+  click it (or press Space). Glazer learns where each display starts and ends, so
+  looking near the edge between two displays no longer picks the wrong one. Calibrations
+  from 0.1 keep working; calibrate again to add the corners.
 - `swift run glazer-camera-check`, which shows your head's yaw live using Glazer's own
   camera code.
 - Glazer never switches displays while you're typing. Keep typing while you look at
@@ -29,6 +40,8 @@ All notable changes to Glazer are recorded here. The format follows
   checks in a row. Face lock needs setting up again.
 - Setup explains that without Accessibility only the pointer moves, and the menu bar
   panel offers to fix it.
+- The display map draws each display's name inside it, so names no longer overlap a
+  display stacked below.
 
 - CI runs lint, build and test, and package jobs in parallel: ShellCheck, actionlint,
   link checks, warnings as errors, a 95% coverage gate on the core logic, a 25-case
@@ -51,6 +64,19 @@ All notable changes to Glazer are recorded here. The format follows
   token, publish from a separate job, and use actions pinned to commits.
 
 ### Fixed
+
+- Typing could go to the display the user wasn't looking at. Without working
+  Accessibility access, Glazer moved the pointer but asked macOS to activate the other
+  app, which macOS ignores unless Glazer is the active app: true just after setup, and
+  rarely after. Glazer now moves keyboard focus first, checks it moved, and only then
+  moves the pointer. Without Accessibility it pauses and says so, and it resumes by
+  itself once access is allowed.
+- Updating while Glazer was running could fail to reopen it (macOS error -600), because
+  the app was replaced before the old copy had exited. The install script now waits for
+  it to quit, and a failed launch no longer reports a successful install as an error.
+- Displays stacked one above the other were told apart mostly by head turn, which shifts
+  when the user moves in their chair, so focus could go to the wrong display. Head turn
+  and tilt are now weighted by how the displays are actually arranged.
 
 - macOS asked for Keychain access at every launch: the face lock item is now read only
   when it's needed, at most once per launch.
@@ -107,6 +133,7 @@ All notable changes to Glazer are recorded here. The format follows
 
 - Requires macOS 15 Sequoia or later.
 
-[Unreleased]: https://github.com/phanipaladugula/glazer/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/phanipaladugula/glazer/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/phanipaladugula/glazer/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/phanipaladugula/glazer/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/phanipaladugula/glazer/releases/tag/v0.1.0

@@ -12,8 +12,8 @@ can be checked in the source code.
 
 ## The camera
 
-When Glazer is on, has two or more displays to choose between, and has been set up, it
-reads up to 12 frames a second from the camera. Each frame is analysed on your Mac with
+When Glazer is on, set to follow where you look, has two or more displays to choose
+between, and has been set up, it reads up to 12 frames a second from the camera. Each frame is analysed on your Mac with
 Apple's Vision framework, which reports:
 
 - where each face is in the image, and how confident it is that it's a face;
@@ -28,8 +28,8 @@ lock setup, a live preview is shown in the setup window. It is shown on screen o
 never recorded.
 
 The camera is **off** when the screen is locked or asleep, when another user is
-switched in, when Glazer is turned off, when only one display is connected, and
-when setup isn't finished. The green camera light is controlled by macOS, not by Glazer,
+switched in, when Glazer is turned off, when only one display is connected, when
+setup isn't finished, and whenever Glazer is set to switch by key only. The green camera light is controlled by macOS, not by Glazer,
 so it always tells you the truth.
 
 ## The keyboard
@@ -41,11 +41,17 @@ From each key press it reads only **the time**. It never reads which key you pre
 what you typed, it can't block or change a keystroke, and it stores nothing. The code is
 in `Sources/GlazerSystem/Focus/TypingMonitor.swift`.
 
+If you switch displays by double-pressing a key, Glazer also watches the modifier keys
+(fn, ⌥, ⌘, ⌃ and ⇧). From each change it reads only whether your chosen key went down or
+up, and that some other key was pressed, which cancels a double-press. It never reads
+which other key, never what you type, can't block a keystroke, and stores nothing. The
+code is in `Sources/GlazerSystem/Focus/DoublePressMonitor.swift`.
+
 ## What Glazer stores
 
 | What | Where | Contains |
 |---|---|---|
-| Settings | User defaults (`io.github.phanipaladugula.glazer`) | On/off, setup done, switch delay, and each display's calibrated head angles |
+| Settings | User defaults (`io.github.phanipaladugula.glazer`) | On/off, setup done, how you switch and with which key, switch delay, and the head angles calibrated at the centre and corners of each display |
 | Face lock template | Your login Keychain, item "Glazer face lock" | Face signatures from setup, and the match threshold learned from them |
 
 The face lock template is biometric data, so it gets extra protection:
@@ -81,8 +87,8 @@ The face lock template is biometric data, so it gets extra protection:
 
 | Permission | Why | Without it |
 |---|---|---|
-| Camera | To see which display you're facing | Glazer can't work |
-| Accessibility | To bring the window you last used on a display to the front, and to know when you're typing | The pointer still moves, but macOS may not bring the window forward, and Glazer may switch while you type |
+| Camera | To see which display you're facing. Not needed to switch by key only | Glazer can only switch by key |
+| Accessibility | To bring the window you last used on a display to the front, to know when you're typing, and to hear a double-press in any app | Glazer pauses, since it could otherwise move the pointer but send your typing to the other display |
 | Touch ID or password | To confirm it's you before face lock is set up or deleted in Glazer | Face lock can't be set up |
 | Keychain access | macOS asks when an app reads the face lock item. Choose **Always Allow** | Face lock pauses Glazer until allowed |
 
@@ -103,6 +109,7 @@ The face lock template is biometric data, so it gets extra protection:
 ## Checking these claims
 
 Camera access lives in `Sources/GlazerSystem/Camera` and `Sources/GlazerSystem/Vision`.
+Keyboard monitoring is in `Sources/GlazerSystem/Focus`.
 Keychain storage is in `Sources/GlazerSystem/Security`. Nothing in the package imports
 networking APIs. You can check with:
 

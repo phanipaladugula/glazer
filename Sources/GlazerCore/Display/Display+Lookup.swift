@@ -30,3 +30,26 @@ extension CGRect {
         return (dx * dx + dy * dy).squareRoot()
     }
 }
+
+extension Array where Element == Display {
+    /// The displays in reading order: top to bottom, then left to right. Switching with a
+    /// key moves through them in this order and wraps round.
+    public var inReadingOrder: [Display] {
+        sorted { first, second in
+            // Screen coordinates have y pointing up, so higher displays have larger maxY.
+            if abs(first.frame.midY - second.frame.midY) > Swift.min(first.frame.height, second.frame.height) / 2 {
+                return first.frame.midY > second.frame.midY
+            }
+            return first.frame.minX < second.frame.minX
+        }
+    }
+
+    /// The display after `id` in reading order, wrapping round. With two displays, the
+    /// other one. `nil` when there's nothing to switch to.
+    public func display(after id: Display.ID?) -> Display? {
+        let ordered = inReadingOrder
+        guard ordered.count >= 2 else { return nil }
+        guard let index = ordered.firstIndex(where: { $0.id == id }) else { return ordered.first }
+        return ordered[(index + 1) % ordered.count]
+    }
+}

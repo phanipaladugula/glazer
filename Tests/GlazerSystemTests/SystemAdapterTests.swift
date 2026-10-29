@@ -110,3 +110,41 @@ struct KeyboardTests {
         }
     }
 }
+
+@Suite("DoublePressMonitor key mapping")
+@MainActor
+struct DoublePressMonitorKeyTests {
+    @Test("Each key has the key codes macOS reports for it")
+    func keyCodes() {
+        #expect(DoublePressMonitor.keyCodes(for: .function).contains(kVK_Function))
+        #expect(DoublePressMonitor.keyCodes(for: .rightOption) == [kVK_RightOption])
+        #expect(DoublePressMonitor.keyCodes(for: .rightCommand) == [kVK_RightCommand])
+        #expect(DoublePressMonitor.keyCodes(for: .rightControl) == [kVK_RightControl])
+        #expect(DoublePressMonitor.keyCodes(for: .rightShift) == [kVK_RightShift])
+    }
+
+    @Test("A right-hand modifier is down only when its own device bit is set")
+    func rightHandBits() {
+        let rightOption = NSEvent.ModifierFlags(
+            rawValue: NSEvent.ModifierFlags.option.rawValue | UInt(NX_DEVICERALTKEYMASK))
+        let leftOption = NSEvent.ModifierFlags(
+            rawValue: NSEvent.ModifierFlags.option.rawValue | UInt(NX_DEVICELALTKEYMASK))
+        #expect(DoublePressMonitor.isDown(.rightOption, flags: rightOption))
+        #expect(!DoublePressMonitor.isDown(.rightOption, flags: leftOption))
+        #expect(!DoublePressMonitor.isDown(.rightOption, flags: []))
+    }
+
+    @Test("fn is down when the function flag is set")
+    func function() {
+        #expect(DoublePressMonitor.isDown(.function, flags: .function))
+        #expect(!DoublePressMonitor.isDown(.function, flags: []))
+    }
+
+    @Test("Starting and stopping leaves no monitor behind")
+    func startStop() {
+        let monitor = DoublePressMonitor()
+        monitor.start(key: .rightOption) {}
+        monitor.stop()
+        #expect(!monitor.isRunning)
+    }
+}
