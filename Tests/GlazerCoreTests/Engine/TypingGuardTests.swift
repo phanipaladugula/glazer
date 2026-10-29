@@ -66,3 +66,25 @@ struct TypingGuardTests {
         #expect(typingGuard.release(at: 12) == nil)
     }
 }
+
+@Suite("TypingGuard, turning back")
+struct TypingGuardTurnBackTests {
+    @Test("A held switch is dropped if the user turns back before pausing")
+    func turnedBack() {
+        var typingGuard = TypingGuard(focusedDisplay: 1)
+        typingGuard.keyPressed(at: 0)
+        #expect(typingGuard.userFaces(2, at: 0.2) == nil)
+
+        // They look back at display 1 before the classifier would switch again.
+        #expect(typingGuard.release(at: 1.5, facing: 1) == nil)
+        #expect(typingGuard.heldDisplay == nil)
+    }
+
+    @Test("A held switch goes ahead if the user still faces it after pausing")
+    func stillFacing() {
+        var typingGuard = TypingGuard(focusedDisplay: 1)
+        typingGuard.keyPressed(at: 0)
+        _ = typingGuard.userFaces(2, at: 0.2)
+        #expect(typingGuard.release(at: 1.5, facing: 2) == 2)
+    }
+}

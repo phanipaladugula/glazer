@@ -98,3 +98,17 @@ struct GazeEngineSettingsTests {
         #expect(late.focusedDisplay == monitorID)
     }
 }
+
+@Suite("GazeEngine facing")
+struct GazeEngineFacingTests {
+    @Test("Facing changes on the frame the head turns; focus waits for the dwell")
+    func facingIsImmediate() {
+        var engine = GazeEngine(calibration: twoDisplayCalibration)
+        engine.setFocusedDisplay(macBookID)
+        _ = engine.process(frame(at: 0, face(yaw: -4, pitch: -8)))
+        let turned = engine.process(frame(at: 0.1, face(yaw: 28, pitch: 2)))
+
+        #expect(turned.facingDisplay == monitorID)
+        #expect(turned.focusedDisplay == macBookID)
+    }
+}

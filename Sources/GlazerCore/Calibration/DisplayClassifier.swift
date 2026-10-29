@@ -26,6 +26,12 @@ public struct DisplayClassifier: Sendable {
     public private(set) var focused: Display.ID?
 
     private var candidate: (id: Display.ID, since: TimeInterval)?
+    /// The display the user was facing when they moved focus by hand. Facing it doesn't
+    /// count as a reason to switch until they turn to another display.
+    private var ignored: Display.ID?
+    /// The display nearest the latest pose, without waiting for the dwell: the display the
+    /// user is facing right now. `nil` when they face none of them.
+    public private(set) var nearest: Display.ID?
 
     public init(calibration: Calibration, configuration: Configuration = Configuration()) {
         self.calibration = calibration
@@ -42,7 +48,18 @@ public struct DisplayClassifier: Sendable {
             nearest.distance <= configuration.maximumDistance
         else {
             candidate = nil
+            self.nearest = nil
             return focused
+        }
+        self.nearest = nearest.id
+
+        // After a manual move, wait for a new head turn before switching.
+        if let ignored {
+            if nearest.id == ignored {
+                candidate = nil
+                return focused
+            }
+            self.ignored = nil
         }
 
         let current = distances.first { $0.id == focused }
@@ -71,5 +88,13 @@ public struct DisplayClassifier: Sendable {
     public mutating func setFocused(_ id: Display.ID?) {
         focused = id
         candidate = nil
+    }
+
+    /// The user moved focus to `id` themselves, such as with the mouse, while possibly
+    /// facing another display. Focus stays there until they turn their head to a
+    /// different display than the one they're facing now.
+    public mutating func userFocused(_ id: Display.ID) {
+        setFocused(id)
+        ignored = nearest == id ? nil : nearest
     }
 }
