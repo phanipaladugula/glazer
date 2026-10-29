@@ -11,3 +11,5 @@ old one.
 | [0003](0003-no-third-party-dependencies.md) | No third-party dependencies | Accepted |
 | [0004](0004-face-lock-with-vision-feature-prints.md) | Face lock with Vision image feature prints | Accepted |
 | [0005](0005-no-switching-while-typing.md) | Don't switch displays while the user is typing | Accepted |
+| [0006](0006-switch-with-a-double-pressed-key.md) | Switch displays with a double-pressed key | Accepted |
+| [0007](0007-calibrate-centre-and-corners.md) | Calibrate the centre and corners of each display | Accepted |

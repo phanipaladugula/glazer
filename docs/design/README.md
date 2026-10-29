@@ -99,14 +99,16 @@ This is the panel's one piece of custom drawing, and it carries real information
 
 - Displays are drawn in their actual arrangement and relative size, taken from the
   system. If the person moves the LG to the left in System Settings, it moves here too.
-- The map is 56 pt tall. Each display is a rounded rectangle (radius 3 pt) with a
+- The map is 76 pt tall. Each display is a rounded rectangle (radius 3 pt) with a
   hairline `separator` stroke.
 - The display with the menu bar has a thin white strip along its top edge, as in
   System Settings.
 - The display in focus is filled with the accent colour. The others use `quaternary`.
-- Each display's short name sits under it in `.caption2`. Every built-in panel is called
-  "Built-in", which fits under the small tile a laptop gets next to a large monitor. The focused display's name is `.primary`
-  and the others are `.secondary`.
+- Each display's short name sits inside its tile in medium `.caption2`, as System
+  Settings draws it, so a name can never land on a display stacked below. Every built-in
+  panel is called "Built-in", which fits the small tile a laptop gets next to a large
+  monitor. The focused display's name is white on the accent colour, the others
+  `.secondary`.
 - When Glazer is off, nothing is highlighted: the arrangement is still shown, but nothing
   is being followed.
 
@@ -119,13 +121,24 @@ highlight (radius 5 pt, accent colour, white text) on hover. A keyboard shortcut
 trailing in `.secondary`. Rows only appear when they work. Glazer doesn't show
 placeholders for features that haven't shipped yet.
 
-Rows, in order: Turn On/Off (⌥⌘G), Calibrate Displays…, Settings… (⌘,), then after a
-divider, About Glazer and Quit Glazer (⌘Q).
+Rows, in order: Turn On/Off (⌥⌘G), Calibrate Displays… (only when the camera is used),
+Settings… (⌘,), then after a divider, About Glazer and Quit Glazer (⌘Q).
+
+When switching by key only, the header badge and the menu bar show `keyboard` instead of
+`eye`, and the status reads "Press fn twice to switch". Nothing suggests the camera is
+watching when it isn't.
 
 ## Setup window
 
-Shown on first launch, 560 × 460 pt with a hidden title bar. One idea per page:
-welcome, camera, Accessibility, calibration, face lock, done.
+Shown on first launch, 560 × 520 pt with a hidden title bar. One idea per page:
+welcome, how to switch, camera, Accessibility, calibration, face lock, done. Switching by
+key only skips the camera, calibration and face lock pages, and the step dots count only
+the pages that apply.
+
+- "How do you want to switch?" offers three rows: Where I look, Double-pressing a key, and
+  Both. Each row has a symbol, a title and one line of `.secondary` text; the selected
+  row has a tinted fill, an accent hairline and a filled check. A key picker appears
+  below once a key is involved.
 
 - Each page has a 64 pt rounded-square badge in the accent colour with a white symbol,
   a 24 pt semibold title and one or two sentences in `.secondary`.
@@ -140,13 +153,17 @@ welcome, camera, Accessibility, calibration, face lock, done.
 Calibration covers every display with a dark, blurred overlay, so nothing else competes
 for attention.
 
-- The display being calibrated shows "Display 1 of 2", "Look at this display", a white
-  dot with a slow pulse, and a ring that fills in the accent colour as poses are
-  recorded.
+- The display being calibrated shows a dot at its centre, then at each corner, 84 pt in
+  from the edges so it clears the menu bar, the notch and the Dock. The user looks at
+  the dot and clicks it (or presses Space). A white dot pulses until clicked; then it
+  turns accent and a ring fills as poses are recorded.
+- The words, "Display 1 of 2 · Dot 1 of 5" and "Look at the dot and click it", hang above
+  the exact middle of the display and Cancel hangs below, so they never cover the centre
+  dot. For a corner dot, a faint arrow in the middle points to it.
 - The other displays dim further and show "Look at Built-in" with an arrow pointing
   toward it.
-- Problems appear as a single yellow line under the target: can't see you, too dark,
-  hold still. They never interrupt the flow.
+- Problems appear as a single yellow line under the middle: can't see you, too dark,
+  hold still, turn to this display. They never interrupt the flow.
 - The result appears on the display with the menu bar: a green check and "Done", or an
   explanation and "Try Again".
 - Esc cancels at any point.

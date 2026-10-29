@@ -47,14 +47,24 @@ GlazerCore     Pure decision logic and value types. No AppKit, no hardware
    checked again every two seconds.
 4. **HeadPoseFilter** smooths the angles with a One Euro filter: steady when still,
    responsive on a turn.
-5. **DisplayClassifier** finds the nearest calibrated display. It switches only when that
-   display is clearly nearer than the current one (by a margin) for long enough (the
-   dwell), and it ignores poses far from every display.
+5. **DisplayClassifier** finds the nearest calibrated display. Each display is a
+   **PoseRegion**: the shape spanned by the head poses recorded at its centre and four
+   corners, so a pose anywhere on it counts as facing it, edges included. It switches
+   only when that display is clearly nearer than the current one (by a margin) for long
+   enough (the dwell), and it ignores poses far from every display
+   ([ADR 0007](adr/0007-calibrate-centre-and-corners.md)).
 6. **TypingGuard** holds a switch back while the user is typing, and lets it through once
    they've paused for a second ([ADR 0005](adr/0005-no-switching-while-typing.md)).
    **TypingMonitor** tells it when keys are pressed, never which keys.
 7. **FocusController** focuses the frontmost window on the target display and returns the
    pointer to where it was there.
+
+Switching by key skips the camera entirely: **DoublePressMonitor** watches the chosen
+modifier key, **DoublePressDetector** decides when two quick taps make a double-press, and
+the app moves focus to the next display in reading order through the same
+FocusController ([ADR 0006](adr/0006-switch-with-a-double-pressed-key.md)). With both on,
+a double-press also tells the engine the user moved focus themselves, so the camera
+doesn't pull it straight back.
 
 ## Modules
 
@@ -64,11 +74,12 @@ GlazerCore     Pure decision logic and value types. No AppKit, no hardware
 |---|---|
 | `Vision/` | `HeadPose`, `Frame`, `DetectedFace` |
 | `Tracking/` | `UserTracker`, `OneEuroFilter`, `HeadPoseFilter`, `LightMeter` |
-| `Calibration/` | `Calibration`, `CalibrationRecorder`, `DisplayClassifier` |
+| `Calibration/` | `Calibration` (centre and corner poses per display), `PoseRegion`, `CalibrationRecorder`, `DisplayClassifier`, `AxisWeights` |
+| `Switching/` | `SwitchingMethod`, `SwitchKey`, `DoublePressDetector` |
 | `Identity/` | `FaceSignature`, `FaceTemplate` (with its learned threshold), `IdentityVerifier`, `FaceEnrollment` |
 | `Engine/` | `GazeEngine`, which ties the pipeline together, and `TypingGuard`, which holds switches back while the user types |
-| `Display/` | `Display`, `DisplayLayout`, lookup by point |
-| `Settings/` | `Preferences`: on/off, setup state, switch delay, calibration |
+| `Display/` | `Display`, `DisplayLayout`, lookup by point, reading order |
+| `Settings/` | `Preferences`: on/off, setup state, switching method and key, switch delay, calibration |
 | `Models/` | `KeyboardShortcut` |
 
 ### GlazerSystem
@@ -78,7 +89,7 @@ GlazerCore     Pure decision logic and value types. No AppKit, no hardware
 | `Camera/` | `CameraFeed`, `CameraAccess` |
 | `Vision/` | `FrameAnalyzer` |
 | `Security/` | `FaceVault` (Keychain), `OwnerAuthentication` (Touch ID or password) |
-| `Focus/` | `FocusController`, `TypingMonitor`, `AccessibilityAccess` |
+| `Focus/` | `FocusController`, `TypingMonitor`, `DoublePressMonitor`, `AccessibilityAccess` |
 | `Display/` | `DisplayMonitor` |
 | `HotKey/` | `HotKey`, a global shortcut through Carbon |
 | `Login/` | `LaunchAtLogin` |
@@ -88,9 +99,9 @@ GlazerCore     Pure decision logic and value types. No AppKit, no hardware
 
 | Area | Role |
 |---|---|
-| `AppModel.swift` | App state. Decides when the camera runs, and owns permissions, calibration and face lock |
+| `AppModel.swift` | App state. Decides when the camera runs and when the switch key is listened for, and owns permissions, calibration and face lock |
 | `Gaze/` | `GazeController`: runs the camera and the engine, and moves focus |
-| `Calibration/` | Full-screen overlays and the calibration session |
+| `Calibration/` | Full-screen overlays with the dots to click, and the calibration session |
 | `FaceLock/` | Face lock setup, with a live camera preview |
 | `Setup/` | The first-run setup window |
 | `Settings/` | General, Displays, Face Lock, Privacy and Diagnostics tabs |
@@ -104,12 +115,12 @@ The camera is on only in three modes, all owned by `GazeController`:
 
 | Mode | When |
 |---|---|
-| Following | Glazer is on, set up, has camera access, and is calibrated for two or more connected displays |
+| Following | Glazer is on, set up to switch with the camera, has camera access, and is calibrated for two or more connected displays |
 | Calibrating | During calibration |
 | Enrolling | During face lock setup |
 
-Otherwise the camera is off. With only one display connected, Glazer doesn't run the
-camera at all.
+Otherwise the camera is off. With only one display connected, or when switching by key
+only, Glazer doesn't run the camera at all.
 
 ## Threading
 

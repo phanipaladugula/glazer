@@ -6,8 +6,19 @@ All notable changes to Glazer are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-29
+
 ### Added
 
+- Switch displays by double-pressing a key. In Setup or **Settings › General**, choose to
+  switch by where you look, by double-pressing a key, or both. The key is fn / 🌐 by
+  default, or a right-hand ⌥, ⌘, ⌃ or ⇧. Each double-press moves the pointer and
+  keyboard to the next display. Switching by key alone never turns on the camera, and
+  Glazer reads only which modifier keys go up and down, never what you type.
+- Calibration with dots at the centre and corners of each display. Look at each dot and
+  click it (or press Space). Glazer learns where each display starts and ends, so
+  looking near the edge between two displays no longer picks the wrong one. Calibrations
+  from 0.1 keep working; calibrate again to add the corners.
 - `swift run glazer-camera-check`, which shows your head's yaw live using Glazer's own
   camera code.
 - Glazer never switches displays while you're typing. Keep typing while you look at
@@ -29,6 +40,8 @@ All notable changes to Glazer are recorded here. The format follows
   checks in a row. Face lock needs setting up again.
 - Setup explains that without Accessibility only the pointer moves, and the menu bar
   panel offers to fix it.
+- The display map draws each display's name inside it, so names no longer overlap a
+  display stacked below.
 
 - CI runs lint, build and test, and package jobs in parallel: ShellCheck, actionlint,
   link checks, warnings as errors, a 95% coverage gate on the core logic, a 25-case
@@ -120,6 +133,7 @@ All notable changes to Glazer are recorded here. The format follows
 
 - Requires macOS 15 Sequoia or later.
 
-[Unreleased]: https://github.com/phanipaladugula/glazer/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/phanipaladugula/glazer/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/phanipaladugula/glazer/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/phanipaladugula/glazer/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/phanipaladugula/glazer/releases/tag/v0.1.0
