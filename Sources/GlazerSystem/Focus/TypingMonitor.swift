@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 
 /// Reports when the user presses a key in any app, so Glazer doesn't switch displays while
 /// they're typing.
@@ -21,6 +22,13 @@ public final class TypingMonitor {
             let timestamp = ProcessInfo.processInfo.systemUptime
             MainActor.assumeIsolated { onKeyPress(timestamp) }
         }
+    }
+
+    /// Whether the user is typing somewhere macOS hides keystrokes from other apps, such
+    /// as a password field. The monitor sees no key presses then, so Glazer must not take
+    /// it as a pause: the rest of a password could otherwise go to another window.
+    public var isSecureInputActive: Bool {
+        IsSecureEventInputEnabled()
     }
 
     public func stop() {

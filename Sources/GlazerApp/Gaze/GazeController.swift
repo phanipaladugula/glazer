@@ -186,6 +186,11 @@ final class GazeController {
     /// Moves focus to the display the user faces, once they aren't typing.
     private func moveFocus(_ output: GazeEngine.Output) {
         let now = ProcessInfo.processInfo.systemUptime
+        // Typing in a password field hides keystrokes from the typing monitor. Treat it as
+        // typing, so focus never moves mid-password.
+        if typing.isSecureInputActive {
+            typingGuard.keyPressed(at: now)
+        }
         let target =
             if let faced = output.switchedTo {
                 typingGuard.userFaces(faced, at: now)
