@@ -6,6 +6,8 @@ All notable changes to Glazer are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-29
+
 ### Added
 
 - Follows which display your head is facing, using the camera and Apple's Vision
@@ -27,3 +29,6 @@ All notable changes to Glazer are recorded here. The format follows
 ### Changed
 
 - Requires macOS 15 Sequoia or later.
+
+[Unreleased]: https://github.com/phanipaladugula/glazer/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/phanipaladugula/glazer/releases/tag/v0.1.0
