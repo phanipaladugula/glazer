@@ -2,6 +2,7 @@
 # Renders the app icon from Resources/Icon/AppIcon.svg.
 #
 # Usage: Scripts/icon.sh
+#   -h, --help  Show this help.
 #
 # Writes Resources/Glazer.icns (every size macOS uses, from 16 pt to 512 pt @2x) and
 # docs/images/icon.png (for the README). Both are committed, so building the app doesn't
@@ -9,19 +10,25 @@
 #
 # Needs Google Chrome or Chromium to render the SVG (set CHROME_PATH to use another), and
 # iconutil and sips, which come with macOS.
-set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-cd "$(dirname "$0")/.."
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h | --help) usage; exit 0 ;;
+        *) usage_error "Unknown option: $1" ;;
+    esac
+done
+
+require_macos
+require sips iconutil
 
 chrome="${CHROME_PATH:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
-if [[ ! -x "$chrome" ]]; then
-    echo "Chrome not found at $chrome. Set CHROME_PATH." >&2
-    exit 69
-fi
+[[ -x "$chrome" ]] || die "Chrome not found at $chrome. Set CHROME_PATH." "$EX_UNAVAILABLE"
 
 source_svg="$PWD/Resources/Icon/AppIcon.svg"
-workspace="$(mktemp -d)"
-trap 'rm -rf "$workspace"' EXIT
+[[ -f "$source_svg" ]] || die "Missing $source_svg." "$EX_NOINPUT"
+make_workspace
+step "Rendering the icon"
 
 # Render the SVG at 1024 × 1024 on a transparent background.
 cat > "$workspace/render.html" <<EOF
@@ -43,7 +50,8 @@ for points in 16 32 128 256 512; do
     sips -z "$pixels" "$pixels" "$workspace/icon-1024.png" --out "$iconset/icon_${points}x${points}@2x.png" >/dev/null
 done
 
+[[ -s "$workspace/icon-1024.png" ]] || die "Chrome didn't render the icon." "$EX_SOFTWARE"
 iconutil --convert icns --output Resources/Glazer.icns "$iconset"
 sips -z 256 256 "$workspace/icon-1024.png" --out docs/images/icon.png >/dev/null
 
-echo "Wrote Resources/Glazer.icns and docs/images/icon.png"
+success "Wrote Resources/Glazer.icns and docs/images/icon.png"

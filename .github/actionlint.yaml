@@ -1,0 +1,4 @@
+# Runner labels newer than actionlint's built-in list. macos-26 is GitHub's macOS 26 runner.
+self-hosted-runner:
+  labels:
+    - macos-26

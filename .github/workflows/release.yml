@@ -66,18 +66,8 @@ jobs:
       - name: Package
         run: Scripts/package.sh
 
-      - name: Check the package
-        run: |
-          set -euo pipefail
-          archs="$(lipo -archs dist/Glazer.app/Contents/MacOS/Glazer)"
-          echo "Architectures: $archs"
-          [[ "$archs" == *arm64* && "$archs" == *x86_64* ]]
-          codesign --verify --strict --verbose=2 dist/Glazer.app
-          codesign -d -r- dist/Glazer.app
-          codesign -d --entitlements - dist/Glazer.app 2>/dev/null | grep -q com.apple.security.device.camera
-          # Install from the package exactly as users will, into a scratch folder.
-          GLAZER_RELEASE_URL="file://$PWD/dist" GLAZER_INSTALL_DIR="$RUNNER_TEMP/apps" bash install.sh --no-open
-          test -x "$RUNNER_TEMP/apps/Glazer.app/Contents/MacOS/Glazer"
+      - name: Installer tests
+        run: Tests/Install/run.sh dist
 
       - name: Check the version matches the tag
         if: startsWith(github.ref, 'refs/tags/')

@@ -2,12 +2,19 @@
 # Prints the release notes for a version: install instructions, then the version's section
 # of CHANGELOG.md.
 #
-# Usage: Scripts/release-notes.sh v0.1.0
-set -euo pipefail
+# Usage: Scripts/release-notes.sh vX.Y.Z
+#   -h, --help  Show this help.
+#
+# Fails if CHANGELOG.md has no section for the version.
 
-cd "$(dirname "$0")/.."
+source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-tag="${1:?Usage: Scripts/release-notes.sh vX.Y.Z}"
+case "${1:-}" in
+    -h | --help) usage; exit 0 ;;
+    v[0-9]*.[0-9]*.[0-9]*) tag=$1 ;;
+    "") usage_error "Give the version tag, such as v0.1.0." ;;
+    *) usage_error "Not a version tag: $1" ;;
+esac
 version="${tag#v}"
 
 # The lines between "## [X.Y.Z]" and the next "## [" heading or the link definitions.
@@ -18,8 +25,7 @@ changes="$(awk -v version="$version" '
 ' CHANGELOG.md)"
 
 if [[ -z "${changes//[[:space:]]/}" ]]; then
-    echo "CHANGELOG.md has no section for ${version}. Add \"## [${version}]\" before tagging." >&2
-    exit 65
+    die "CHANGELOG.md has no section for ${version}. Add \"## [${version}]\" before tagging." "$EX_DATAERR"
 fi
 
 cat <<EOF

@@ -63,3 +63,12 @@ struct CalibrationRestrictionTests {
         #expect(classifier.update(with: HeadPose(yaw: 60, pitch: 0), at: 1) != 3)
     }
 }
+
+@Suite("Calibration issues")
+struct CalibrationIssueTests {
+    @Test("A single point has nothing to be too close to")
+    func singlePoint() {
+        let calibration = Calibration(points: [.init(displayID: 1, pose: HeadPose(yaw: 0, pitch: 0))])
+        #expect(calibration.issue() == nil)
+    }
+}

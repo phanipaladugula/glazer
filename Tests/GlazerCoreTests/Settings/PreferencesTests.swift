@@ -44,3 +44,18 @@ struct PreferencesTests {
         #expect(Preferences(store: store).calibration == nil)
     }
 }
+
+@Suite("Preferences, writes")
+struct PreferencesWriteTests {
+    @Test("Setup state and switch delay persist")
+    func persists() {
+        let store = MemoryStore()
+        let preferences = Preferences(store: store)
+        preferences.hasCompletedSetup = true
+        preferences.switchDelay = 0.9
+
+        let reloaded = Preferences(store: store)
+        #expect(reloaded.hasCompletedSetup)
+        #expect(reloaded.switchDelay == 0.9)
+    }
+}

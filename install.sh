@@ -28,6 +28,11 @@ readonly repository="phanipaladugula/glazer"
 readonly bundle_id="io.github.phanipaladugula.glazer"
 readonly minimum_macos=15
 
+# Releases are signed with Glazer's own certificate. Its SHA-1 fingerprint is pinned here,
+# so a download that was tampered with is rejected even if its checksum was replaced too.
+# Empty until the project's signing identity exists; then only the bundle ID is checked.
+readonly expected_signer=""
+
 # Some networks can't reach every GitHub download server. A short connect timeout lets
 # curl give up on an unreachable server within seconds and try the next, instead of
 # waiting tens of seconds. Timeouts, refused connections and server errors are retried;
@@ -35,7 +40,7 @@ readonly minimum_macos=15
 readonly curl_options=(
     --fail --location --silent --show-error
     --proto "=https,file" --proto-redir "=https"
-    --connect-timeout 3 --retry 4 --retry-delay 1 --retry-connrefused
+    --tlsv1.2 --connect-timeout 3 --retry 4 --retry-delay 1 --retry-connrefused
     --max-time 300
 )
 
@@ -109,6 +114,7 @@ human_size() {
 # and looks the same in Terminal and iTerm on dark and light backgrounds.
 # "." is transparent.
 
+# shellcheck disable=SC2034 # Read by name in render_frame.
 robot_walk_a=(
     "............"
     ".hhbbbbbbbb."
@@ -119,6 +125,7 @@ robot_walk_a=(
     ".bbbbbbbbBB."
     ".b.B....b.B."
 )
+# shellcheck disable=SC2034 # Read by name in render_frame.
 robot_walk_b=(
     "............"
     ".hhbbbbbbbb."
@@ -129,6 +136,7 @@ robot_walk_b=(
     ".bbbbbbbbBB."
     "..b.B..b.B.."
 )
+# shellcheck disable=SC2034 # Read by name in render_frame.
 robot_blink=(
     "............"
     ".hhbbbbbbbb."
@@ -139,6 +147,7 @@ robot_blink=(
     ".bbbbbbbbBB."
     "..b.B..b.B.."
 )
+# shellcheck disable=SC2034 # Read by name in render_frame.
 robot_jump=(
     "y..........y"
     ".hCcccccccb."
@@ -330,8 +339,12 @@ workspace=""
 download_pid=""
 
 cleanup() {
-    [[ -n "$download_pid" ]] && kill "$download_pid" 2>/dev/null || true
-    [[ -n "$workspace" ]] && rm -rf "$workspace"
+    if [[ -n "$download_pid" ]]; then
+        kill "$download_pid" 2>/dev/null || true
+    fi
+    if [[ -n "$workspace" ]]; then
+        rm -rf "$workspace"
+    fi
     finish_animation
 }
 trap cleanup EXIT
@@ -419,6 +432,17 @@ download_zip() {
     walk_to 850
 }
 
+# Checks the app's signature is intact, that it really is Glazer, and, once the project
+# has a signing identity, that Glazer's certificate signed it.
+verify_signature() {
+    local app=$1 requirement="identifier \"$bundle_id\""
+    if [[ -n "$expected_signer" ]]; then
+        requirement+=" and certificate leaf = H\"$expected_signer\""
+    fi
+    codesign --verify --strict -R="$requirement" "$app" 2>/dev/null ||
+        fail "The app isn't signed as Glazer. Nothing was installed."
+}
+
 install() {
     [[ "$(uname -s)" == Darwin ]] || fail "Glazer runs on macOS only."
     local macos_major
@@ -440,11 +464,15 @@ install() {
     download_zip
 
     status "Verifying checksum and signature"
-    (cd "$workspace" && shasum -a 256 -c -s Glazer.zip.sha256) ||
+    # Compare the hashes directly, rather than trusting the file name inside the .sha256.
+    local expected_hash actual_hash
+    expected_hash=$(awk 'NR == 1 { print tolower($1) }' "$workspace/Glazer.zip.sha256")
+    actual_hash=$(shasum -a 256 "$workspace/Glazer.zip" | awk '{ print tolower($1) }')
+    [[ ${#expected_hash} -eq 64 && "$expected_hash" == "$actual_hash" ]] ||
         fail "The download doesn't match its checksum. Nothing was installed."
+
     ditto -x -k "$workspace/Glazer.zip" "$workspace"
-    codesign --verify --strict "$workspace/Glazer.app" 2>/dev/null ||
-        fail "The app's code signature is invalid. Nothing was installed."
+    verify_signature "$workspace/Glazer.app"
     walk_to 920
 
     local destination="${GLAZER_INSTALL_DIR:-/Applications}"
@@ -452,6 +480,9 @@ install() {
     if [[ ! -w "$destination" ]]; then
         destination="$HOME/Applications"
         mkdir -p "$destination"
+        if [[ -d /Applications/Glazer.app ]]; then
+            note "An older Glazer is in /Applications and can't be replaced without admin rights. Delete it to avoid running both."
+        fi
     fi
 
     status "Installing to $(display_path "$destination")"
@@ -485,11 +516,18 @@ uninstall() {
         step "Removing $app"
         rm -rf "$app"
     fi
-    step "Removing settings and permissions"
+    step "Removing settings, permissions and face lock"
     defaults delete "$bundle_id" >/dev/null 2>&1 || true
     tccutil reset All "$bundle_id" >/dev/null 2>&1 || true
+    security delete-generic-password -s "$bundle_id.face-lock" >/dev/null 2>&1 || true
     printf '%sGlazer is uninstalled.%s\n' "$green$bold" "$reset"
-    note "If you set up face lock, delete the \"Glazer face lock\" item in Keychain Access."
 }
+
+# Installing as root would leave a root-owned app and change root's settings, not the
+# user's.
+if [[ $EUID -eq 0 ]]; then
+    echo "Run this without sudo: Glazer installs for your user and never needs root." >&2
+    exit 77
+fi
 
 "$action"
