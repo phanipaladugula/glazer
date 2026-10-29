@@ -17,6 +17,24 @@ few seconds.
 4. **Quiet when off.** When Glazer is off, the camera is off. The icon shows that clearly
    and the panel says so in plain words.
 
+## App icon
+
+"Focus hop": a MacBook and a monitor, with focus hopping along a glowing arc from the
+MacBook to the monitor. The monitor is lit, and its window holds the focus ring. The
+icon shows what Glazer does in one picture: focus follows you to the other display.
+
+- **Source:** `Resources/Icon/AppIcon.svg`, on the macOS icon grid (an 824 pt rounded
+  square on a 1024 pt canvas).
+- **Colours:** a deep indigo tile lit from above, aluminium devices, and the same cyan to
+  blue gradient for the lit screen that the README figure and the accent use.
+- **Sizes:** it stays legible down to 16 px. The two devices and the lit screen are the
+  parts that survive. The arc and the ring are details for larger sizes.
+- **Build:** `Scripts/icon.sh` renders `Resources/Glazer.icns` and `docs/images/icon.png`.
+  Both are committed, so building the app doesn't need Chrome.
+
+The menu bar keeps the `eye` symbols below: a menu bar icon must be a small monochrome
+template image, and the eye reads instantly at that size.
+
 ## Menu bar icon
 
 | State | Symbol | Notes |
