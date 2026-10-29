@@ -47,7 +47,7 @@ macOS APIs directly.
 |---|---|
 | `GlazerApp.swift` | Entry point. A `MenuBarExtra`, and no Dock icon |
 | `AppModel.swift` | The on/off state, preferences and the toggle shortcut |
-| `Views/` | The panel. See [the design spec](design/menu-bar.md) |
+| `Views/` | The panel. See [the design spec](design/README.md) |
 
 ## The pipeline (planned)
 
