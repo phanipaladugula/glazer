@@ -1,10 +1,11 @@
+import CoreImage
 import CoreVideo
 import GlazerCore
 import OSLog
 import Vision
 
-/// Finds faces in a camera image and measures them, using Apple's Vision framework on
-/// this Mac. Nothing leaves the Mac, and the image is not kept.
+/// Finds faces, and hands when asked, in a camera image and measures them, using Apple's
+/// Vision framework on this Mac. Nothing leaves the Mac, and the image is not kept.
 struct FrameAnalyzer: Sendable {
     /// The most faces given a signature in one frame. Signatures cost more than detection,
     /// and the user is almost always among the nearest few faces.
@@ -15,30 +16,34 @@ struct FrameAnalyzer: Sendable {
     /// hair, clothes and background, which aren't who someone is, sway the comparison.
     private let signatureCropPadding = 0.0
 
-    /// The least share of the image height a palm must cover to be read. Smaller hands are
-    /// usually someone further back, and their joints are too few pixels apart to trust.
-    static let minimumPalmSize = 0.04
+    /// The least share of the image height a palm must cover to be read: below it, the
+    /// joints are too few pixels apart to measure. Whether a hand is the right size to be
+    /// the user's is decided against their face, by `UserHand`.
+    static let minimumPalmSize = 0.015
+
+    /// The most hands read in one frame: the user's two, and one or two of other people's,
+    /// which `UserHand` then rules out.
+    static let maximumHands = 4
 
     /// The least confidence for a joint to be used. Low, because in a fist the fingertips
     /// are hidden behind the knuckles and Vision places them with little confidence, yet
     /// roughly in the right place, which is all the shape measures need.
     static let minimumJointConfidence: VNConfidence = 0.1
 
+    /// - Parameter handArea: Where to look for hands, in normalised image coordinates, or
+    ///   `nil` not to. The whole image is `CGRect(x: 0, y: 0, width: 1, height: 1)`.
     func analyze(
-        _ pixelBuffer: CVPixelBuffer, at timestamp: TimeInterval, includeSignatures: Bool, includeHands: Bool = false
+        _ pixelBuffer: CVPixelBuffer, at timestamp: TimeInterval, includeSignatures: Bool, handArea: CGRect? = nil
     ) -> Frame {
         let brightness = Self.brightness(of: pixelBuffer)
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up)
 
         let detection = VNDetectFaceRectanglesRequest()
         detection.revision = VNDetectFaceRectanglesRequestRevision3
-        let hands = VNDetectHumanHandPoseRequest()
-        hands.maximumHandCount = 2
         do {
-            // One call, so Vision can share work between the two.
-            try handler.perform(includeHands ? [detection, hands] : [detection])
+            try handler.perform([detection])
         } catch {
-            Logger.vision.error("Face or hand detection failed: \(error)")
+            Logger.vision.error("Face detection failed: \(error)")
             return Frame(timestamp: timestamp, faces: [], brightness: brightness)
         }
 
@@ -58,17 +63,43 @@ struct FrameAnalyzer: Sendable {
                 signature: signature
             )
         }
-        let size = CGSize(width: CVPixelBufferGetWidth(pixelBuffer), height: CVPixelBufferGetHeight(pixelBuffer))
-        let hand = includeHands ? Self.nearestHand(in: hands.results ?? [], imageSize: size) : nil
-        return Frame(timestamp: timestamp, faces: faces, brightness: brightness, hand: hand)
+        let hands = handArea.map { Self.hands(in: pixelBuffer, area: $0) } ?? []
+        return Frame(timestamp: timestamp, faces: faces, brightness: brightness, hands: hands)
     }
 
-    /// The biggest readable hand, which is almost always the user's raised one.
-    static func nearestHand(in observations: [VNHumanHandPoseObservation], imageSize: CGSize) -> HandReading? {
+    /// The readable hands in `area` of the image, biggest first.
+    ///
+    /// Vision looks at a cropped image rather than the whole frame: it scales what it's
+    /// given to a fixed size, so a smaller area gives each hand more detail. That's what
+    /// lets a hand at the far side of a desk be read.
+    static func hands(in pixelBuffer: CVPixelBuffer, area: CGRect) -> [HandReading] {
+        let image = CIImage(cvPixelBuffer: pixelBuffer)
+        let imageSize = image.extent.size
+        let crop = CGRect(
+            x: area.minX * imageSize.width, y: area.minY * imageSize.height,
+            width: area.width * imageSize.width, height: area.height * imageSize.height
+        ).integral.intersection(image.extent)
+        guard crop.width >= 64, crop.height >= 64 else { return [] }
+
+        let request = VNDetectHumanHandPoseRequest()
+        request.maximumHandCount = maximumHands
+        do {
+            // Vision reports points relative to the cropped image, origin bottom left.
+            try VNImageRequestHandler(ciImage: image.cropped(to: crop), orientation: .up).perform([request])
+        } catch {
+            Logger.vision.error("Hand detection failed: \(error)")
+            return []
+        }
+        return readings(of: request.results ?? [], crop: crop, imageSize: imageSize)
+    }
+
+    static func readings(
+        of observations: [VNHumanHandPoseObservation], crop: CGRect, imageSize: CGSize
+    ) -> [HandReading] {
         observations
-            .compactMap { reading(of: $0, imageSize: imageSize) }
+            .compactMap { reading(of: $0, crop: crop, imageSize: imageSize) }
             .filter { $0.size >= minimumPalmSize }
-            .max { $0.size < $1.size }
+            .sorted { $0.size > $1.size }
     }
 
     private static let fingerJoints: [[VNHumanHandPoseObservation.JointName]] = [
@@ -78,14 +109,17 @@ struct FrameAnalyzer: Sendable {
         [.littleMCP, .littlePIP, .littleDIP, .littleTip],
     ]
 
-    private static func reading(of observation: VNHumanHandPoseObservation, imageSize: CGSize) -> HandReading? {
+    private static func reading(
+        of observation: VNHumanHandPoseObservation, crop: CGRect, imageSize: CGSize
+    ) -> HandReading? {
         guard let points = try? observation.recognizedPoints(.all) else { return nil }
 
-        // Vision's points are normalised with the origin at the bottom left. Pixels keep
-        // lengths true whatever the image's shape.
+        // Vision's points are normalised within the crop, with the origin at the bottom
+        // left. Pixels of the whole image keep lengths true whatever the crop's shape.
         func pixel(_ name: VNHumanHandPoseObservation.JointName) -> CGPoint? {
             guard let point = points[name], point.confidence >= minimumJointConfidence else { return nil }
-            return CGPoint(x: point.location.x * imageSize.width, y: point.location.y * imageSize.height)
+            return CGPoint(
+                x: crop.minX + point.location.x * crop.width, y: crop.minY + point.location.y * crop.height)
         }
 
         guard let wrist = pixel(.wrist) else { return nil }

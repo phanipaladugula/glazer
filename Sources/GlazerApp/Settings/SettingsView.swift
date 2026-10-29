@@ -330,6 +330,12 @@ private struct GestureSettings: View {
                             .disabled(model.cameraAccess != .granted)
                         }
                     }
+                    if model.handCalibration != nil, model.displays.count >= 2 {
+                        LabeledContent("Display is chosen by") {
+                            Text(model.aimsWithHand ? "Where you hold your hand" : "Where you look")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     PermissionRow(
                         title: "Screen Recording",
                         isGranted: model.hasScreenCaptureAccess,
@@ -346,11 +352,15 @@ private struct GestureSettings: View {
             Section("How it works") {
                 Fact(
                     symbol: "hand.raised.fingers.spread",
-                    text: "Facing a display, open your hand, then close it into a fist. Glazer takes a "
+                    text: "Hold your open hand towards a display, then close it into a fist. Glazer takes a "
                         + "screenshot of that display, saves it with your screenshots and copies it.")
                 Fact(
                     symbol: "arrow.left.and.right",
-                    text: "Keep the fist closed and turn to another display. The screenshot follows you.")
+                    text: "Keep the fist closed and move it towards another display. The screenshot follows you.")
+                Fact(
+                    symbol: "person.crop.circle.badge.checkmark",
+                    text: "Only your hand counts: one beside your face, the right size for you. "
+                        + "Other people's hands in view are ignored.")
                 Fact(
                     symbol: "doc.on.clipboard",
                     text: "Open your hand. If the pointer is on a text box or message field, Glazer pastes "
@@ -456,6 +466,10 @@ private struct DiagnosticsSettings: View {
                             value: diagnostics.handOpenness.map { $0.formatted(.percent.precision(.fractionLength(0))) }
                                 ?? "No hand")
                         Reading("Holding a grab", value: diagnostics.isHoldingGrab ? "Yes" : "No")
+                        if model.aimsWithHand {
+                            Reading("Hand held towards", value: displayName(diagnostics.handAimedAt))
+                        }
+                        Reading("Other hands ignored", value: "\(diagnostics.otherHands)")
                     }
                 }
                 Section("Camera") {

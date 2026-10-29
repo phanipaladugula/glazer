@@ -10,8 +10,9 @@ import Observation
 /// The camera runs only in one of four modes: following the user, calibrating, enrolling
 /// face lock, or calibrating hand gestures. Otherwise it is off.
 ///
-/// While following with hand gestures on, it also watches for a grab and a drop, and
-/// reports each with the display the user faced when it began.
+/// While following with hand gestures on, it also watches the user's hand, and no one
+/// else's, for a grab and a drop. Each goes to the display the hand was held towards when
+/// it began, or failing that the display the user faced.
 @MainActor
 @Observable
 final class GazeController {
@@ -53,6 +54,10 @@ final class GazeController {
         /// How open the nearest hand is, from 0 (fist) to 1 (open), while gestures are on.
         var handOpenness: Double?
         var isHoldingGrab = false
+        /// The display the user's hand is held towards, when that's clear.
+        var handAimedAt: Display.ID?
+        /// Hands in view that aren't the user's.
+        var otherHands = 0
     }
 
     /// Told about each hand gesture while following.
@@ -71,6 +76,15 @@ final class GazeController {
     @ObservationIgnored private var grab: GrabDetector?
     /// Where the user looked lately, so a gesture goes where they faced when it began.
     @ObservationIgnored private var faced = DisplayHistory()
+    /// Where the user held their hand for each display, if calibration could tell.
+    @ObservationIgnored private var aim: HandAim?
+    /// Which display the user's hand was held towards lately.
+    @ObservationIgnored private var aimed = DisplayHistory()
+    /// Where the user's face was last seen, and when. Hands are matched to it, and a
+    /// raised hand often hides the face for a moment.
+    @ObservationIgnored private var userFace: (bounds: CGRect, time: TimeInterval)?
+    /// The user's hand in the latest frame.
+    @ObservationIgnored private var userHand: HandReading?
     /// What following was last started with, so an unchanged request doesn't restart it.
     @ObservationIgnored private var followed: (displays: [Display], calibration: Calibration, verifier: FaceTemplate?)?
     /// Bumped on every start and stop, so a camera start that finishes late can tell it's
@@ -145,8 +159,10 @@ final class GazeController {
     }
 
     /// Turns hand gestures on with `calibration`, or off with `nil`. Turning them off
-    /// cancels a grab in progress.
-    func setGestures(_ calibration: HandCalibration?) {
+    /// cancels a grab in progress. With `aim`, gestures go to the display the hand is held
+    /// towards.
+    func setGestures(_ calibration: HandCalibration?, aim: HandAim? = nil) {
+        self.aim = calibration == nil ? nil : aim
         if let calibration {
             if grab == nil {
                 grab = GrabDetector(calibration: calibration)
@@ -177,6 +193,10 @@ final class GazeController {
         }
         grab?.reset()
         faced.removeAll()
+        aimed.removeAll()
+        userFace = nil
+        userHand = nil
+        camera.setHandArea(nil)
         camera.stop()
         typing.stop()
         mode = .idle
@@ -249,6 +269,8 @@ final class GazeController {
 
         let output = engine?.process(frame)
         self.output = output
+        // During hand calibration there's no engine: the user is the nearest face.
+        trackUserHand(in: frame, face: mode == .calibratingHands ? frame.nearestFace?.bounds : output?.userFace)
         updateDiagnostics(with: frame)
 
         if let engine {
@@ -264,18 +286,32 @@ final class GazeController {
         frameHandler?(frame, output)
     }
 
-    /// Turns a grab or drop into a ``Gesture`` for the display the user faced as it began.
+    /// Finds the user's hand, beside their face, and points the camera's hand search at
+    /// the area around them.
+    private func trackUserHand(in frame: Frame, face: CGRect?) {
+        if let face {
+            userFace = (face, frame.timestamp)
+        } else if let last = userFace, frame.timestamp - last.time > 2 {
+            userFace = nil
+        }
+        userHand = userFace.flatMap { UserHand.hand(of: $0.bounds, among: frame.hands) }
+        camera.setHandArea(userFace.map { UserHand.searchArea(around: $0.bounds) })
+    }
+
+    /// Turns a grab or drop into a ``Gesture`` for the display the hand was held towards
+    /// as it began, or else the display the user faced.
     private func watchHand(in frame: Frame, output: GazeEngine.Output) {
         guard grab != nil else { return }
         faced.record(output.facingDisplay ?? output.focusedDisplay, at: frame.timestamp)
-        guard let event = grab?.update(frame.hand, at: frame.timestamp) else { return }
+        aimed.record(currentAim, at: frame.timestamp)
+        guard let event = grab?.update(userHand, at: frame.timestamp) else { return }
 
         let gesture: Gesture? =
             switch event {
             case .grabbed(let startedAt):
-                (faced.display(at: startedAt) ?? focusedDisplay).map(Gesture.grabbed)
+                target(at: startedAt).map(Gesture.grabbed)
             case .dropped(let startedAt):
-                (faced.display(at: startedAt) ?? focusedDisplay).map(Gesture.dropped)
+                target(at: startedAt).map(Gesture.dropped)
             case .cancelled:
                 .cancelled
             }
@@ -287,6 +323,27 @@ final class GazeController {
         } else {
             onGesture?(.cancelled)
         }
+    }
+
+    /// The display a gesture that began at `timestamp` is for.
+    private func target(at timestamp: TimeInterval) -> Display.ID? {
+        aimed.display(near: timestamp, within: 0.6) ?? faced.display(at: timestamp) ?? focusedDisplay
+    }
+
+    /// The display the user's hand is held towards now, when that's clear.
+    private var currentAim: Display.ID? {
+        guard let aim, let userHand, let face = userFace?.bounds else { return nil }
+        return aim.display(for: UserHand.offset(of: userHand, from: face))
+    }
+
+    /// The user's hand in the latest frame, for hand calibration.
+    var currentUserHand: HandReading? {
+        userHand
+    }
+
+    /// Where the user's face was last seen, for hand calibration.
+    var currentUserFace: CGRect? {
+        userFace?.bounds
     }
 
     /// Keeps the engine in step when the user moves the pointer to another display by
@@ -373,7 +430,9 @@ final class GazeController {
             matchScore: score,
             framesPerSecond: Double(frameTimes.count),
             handOpenness: grab?.openness,
-            isHoldingGrab: grab?.phase == .holding
+            isHoldingGrab: grab?.phase == .holding,
+            handAimedAt: currentAim,
+            otherHands: frame.hands.count - (userHand == nil ? 0 : 1)
         )
     }
 

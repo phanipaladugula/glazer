@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// Glazer's decision pipeline: from camera frames to "focus this display".
@@ -32,6 +33,9 @@ public struct GazeEngine: Sendable {
         public var facingDisplay: Display.ID?
         /// Set on the frame where focus moved to another display.
         public var switchedTo: Display.ID?
+        /// Where the user's face is in this frame, in normalised image coordinates, when
+        /// it was found.
+        public var userFace: CGRect? = nil
     }
 
     public private(set) var tracker: UserTracker
@@ -82,9 +86,11 @@ public struct GazeEngine: Sendable {
     public mutating func process(_ frame: Frame) -> Output {
         let lightLevel = lightMeter.update(brightness: frame.brightness)
         let previousFocus = classifier?.focused
+        var userFace: CGRect?
 
         switch tracker.update(with: frame) {
         case .user(let face):
+            userFace = face.bounds
             let smoothed = filter.filter(face.pose, at: frame.timestamp)
             pose = smoothed
             status = .following
@@ -106,7 +112,8 @@ public struct GazeEngine: Sendable {
             lightLevel: lightLevel,
             focusedDisplay: focused,
             facingDisplay: status == .following ? classifier?.nearest : nil,
-            switchedTo: focused != previousFocus ? focused : nil
+            switchedTo: focused != previousFocus ? focused : nil,
+            userFace: userFace
         )
     }
 

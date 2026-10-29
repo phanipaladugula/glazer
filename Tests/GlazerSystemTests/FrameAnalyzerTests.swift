@@ -45,12 +45,21 @@ struct FrameAnalyzerHandTests {
     func noHands() throws {
         let image = try FrameAnalyzerTests().image(luma: 120)
 
-        #expect(FrameAnalyzer().analyze(image, at: 0, includeSignatures: false, includeHands: true).hand == nil)
-        #expect(FrameAnalyzer().analyze(image, at: 0, includeSignatures: false).hand == nil)
+        let whole = CGRect(x: 0, y: 0, width: 1, height: 1)
+        #expect(FrameAnalyzer().analyze(image, at: 0, includeSignatures: false, handArea: whole).hands.isEmpty)
+        #expect(FrameAnalyzer().analyze(image, at: 0, includeSignatures: false).hands.isEmpty)
     }
 
-    @Test("No observations give no hand")
+    @Test("An area too small to read is skipped")
+    func tinyArea() throws {
+        let image = try FrameAnalyzerTests().image(luma: 120)
+
+        #expect(FrameAnalyzer.hands(in: image, area: CGRect(x: 0.5, y: 0.5, width: 0.01, height: 0.01)).isEmpty)
+    }
+
+    @Test("No observations give no hands")
     func noObservations() {
-        #expect(FrameAnalyzer.nearestHand(in: [], imageSize: CGSize(width: 1280, height: 720)) == nil)
+        let size = CGSize(width: 1280, height: 720)
+        #expect(FrameAnalyzer.readings(of: [], crop: CGRect(origin: .zero, size: size), imageSize: size).isEmpty)
     }
 }

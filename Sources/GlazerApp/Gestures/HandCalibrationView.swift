@@ -32,7 +32,7 @@ struct HandCalibrationView: View {
             .padding(.top, 24)
 
             if flow.step == .trying {
-                TrialChecklist(trial: flow.trial)
+                TrialResults(flow: flow)
                     .padding(.top, 12)
                     .transition(.opacity)
             }
@@ -51,19 +51,23 @@ struct HandCalibrationView: View {
             }
             .padding(16)
         }
-        .frame(width: 460, height: 540)
+        .frame(width: 460, height: 560)
         .animation(.smooth(duration: 0.3), value: flow.step)
-        .animation(.smooth(duration: 0.2), value: flow.recorder.progress)
-        .animation(.smooth(duration: 0.2), value: flow.trial)
+        .animation(.smooth(duration: 0.2), value: flow.shapes.progress)
+        .animation(.smooth(duration: 0.2), value: flow.grabs + flow.drops)
         .onDisappear { flow.cancel() }
     }
 
     // MARK: Viewfinder
 
+    private var isCameraOn: Bool {
+        flow.step == .shapes || flow.step == .aiming || flow.step == .trying
+    }
+
     private var viewfinder: some View {
         ZStack(alignment: .bottom) {
             Group {
-                if flow.step == .recording || flow.step == .trying {
+                if isCameraOn {
                     CameraPreview(session: model.gaze.camera.session)
                 } else {
                     ZStack {
@@ -79,9 +83,22 @@ struct HandCalibrationView: View {
             .frame(width: 380, height: 240)
 
             switch flow.step {
-            case .recording:
-                ShapeSteps(recorder: flow.recorder)
+            case .shapes:
+                StepPills(
+                    titles: flow.shapes.configuration.shapes.map { $0 == .open ? "Open" : "Fist" },
+                    step: flow.shapes.step, fraction: fraction(of: flow.shapes.progress)
+                )
+                .padding(10)
+            case .aiming:
+                if let aiming = flow.aiming {
+                    StepPills(
+                        titles: aiming.displays.map { id in
+                            flow.displays.first { $0.id == id }?.shortName ?? "Display"
+                        },
+                        step: aiming.step, fraction: fraction(of: aiming.progress)
+                    )
                     .padding(10)
+                }
             case .trying:
                 OpennessMeter(openness: flow.openness)
                     .padding(10)
@@ -91,6 +108,14 @@ struct HandCalibrationView: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.separator, lineWidth: 0.5))
+    }
+
+    private func fraction(of progress: HandCalibrationRecorder.Progress) -> Double? {
+        if case .recording(_, let fraction) = progress { fraction } else { nil }
+    }
+
+    private func fraction(of progress: HandAimRecorder.Progress) -> Double? {
+        if case .recording(_, let fraction) = progress { fraction } else { nil }
     }
 
     private var placeholderSymbol: String {
@@ -108,12 +133,13 @@ struct HandCalibrationView: View {
     private var title: String {
         switch flow.step {
         case .intro: "Calibrate Hand Gestures"
-        case .recording:
-            switch flow.recorder.progress {
+        case .shapes:
+            switch flow.shapes.progress {
             case .waiting(.open), .recording(.open, _): "Open hand"
             case .waiting(.fist), .recording(.fist, _): "Fist"
             case .finished, .failed: ""
             }
+        case .aiming: "Point at each display"
         case .trying: "Try it"
         case .failed: "Calibration didn't work"
         }
@@ -122,28 +148,41 @@ struct HandCalibrationView: View {
     private var message: String {
         switch flow.step {
         case .intro:
-            "Glazer learns how your open hand and your fist look to this camera, so it can tell them "
-                + "apart in your light, at your distance. Sit as you usually do. It takes about 15 seconds."
-        case .recording:
-            switch flow.recorder.progress {
+            return "Glazer learns how your open hand and your fist look to this camera, then where you hold "
+                + "your hand for each display. Sit as you usually do. It takes about half a minute."
+        case .shapes:
+            guard flow.seesFace else {
+                return "Face the camera: Glazer matches your hand to your face, so other people's hands never count."
+            }
+            switch flow.shapes.progress {
             case .waiting(.open):
-                flow.seesHand
+                return flow.seesHand
                     ? "Hold still, with your fingers spread."
                     : "Raise your hand beside your face, open, with your palm towards the camera."
             case .waiting(.fist):
-                flow.seesHand ? "Hold still." : "Now close it into a fist, in the same place."
-            case .recording(.open, _): "Keep it open…"
-            case .recording(.fist, _): "Keep the fist…"
-            case .finished, .failed: ""
+                return flow.seesHand ? "Hold still." : "Now close it into a fist, in the same place."
+            case .recording(.open, _): return "Keep it open…"
+            case .recording(.fist, _): return "Keep the fist…"
+            case .finished, .failed: return ""
             }
+        case .aiming:
+            return "Turn to the display showing the hand, and hold your open hand up towards it until it fills. "
+                + "Then the next one."
         case .trying:
-            "Open your hand, then close it to grab. Open it again to drop. "
-                + "Glazer won't take a screenshot while you try."
+            if flow.aim != nil {
+                return "Grab facing one display, turn, and drop facing another. "
+                    + "Glazer shows which display your hand is held towards. No screenshot is taken."
+            }
+            if flow.aimProblem != nil {
+                return "Your hand was in about the same place for each display, so Glazer will choose the display "
+                    + "you look at. Open your hand, close it to grab, open it to drop."
+            }
+            return "Open your hand, then close it to grab. Open it again to drop. No screenshot is taken."
         case .failed(.tooSimilar):
-            "Your open hand and your fist looked too alike to the camera. "
+            return "Your open hand and your fist looked too alike to the camera. "
                 + "Try brighter light, or hold your hand a little closer."
         case .failed(.tooFewReadings):
-            "Glazer didn't see your hand for long enough. Keep it in view while each shape is recorded."
+            return "Glazer didn't see your hand for long enough. Keep it in view while each shape is recorded."
         }
     }
 
@@ -158,7 +197,7 @@ struct HandCalibrationView: View {
             Button("Start") { flow.start() }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
-        case .recording:
+        case .shapes, .aiming:
             Button("Cancel") { flow.cancel() }
                 .keyboardShortcut(.cancelAction)
         case .trying:
@@ -179,14 +218,18 @@ struct HandCalibrationView: View {
     }
 }
 
-/// The four shapes, open and fist twice, with the one being recorded filling up.
-private struct ShapeSteps: View {
-    let recorder: HandCalibrationRecorder
+/// One pill per step, filled as it's recorded.
+private struct StepPills: View {
+    let titles: [String]
+    let step: Int
+    /// How far the current step has been recorded, or `nil` while it waits.
+    let fraction: Double?
 
     var body: some View {
         HStack(spacing: 6) {
-            ForEach(Array(recorder.configuration.shapes.enumerated()), id: \.offset) { index, shape in
-                Text(shape == .open ? "Open" : "Fist")
+            ForEach(Array(titles.enumerated()), id: \.offset) { index, title in
+                Text(title)
+                    .lineLimit(1)
                     .font(.caption.weight(.medium))
                     .padding(.horizontal, 9)
                     .padding(.vertical, 5)
@@ -198,15 +241,14 @@ private struct ShapeSteps: View {
                     }
                     .background(.thinMaterial, in: Capsule())
                     .clipShape(Capsule())
-                    .opacity(index <= recorder.step ? 1 : 0.6)
+                    .opacity(index <= step ? 1 : 0.6)
             }
         }
     }
 
     private func fill(_ index: Int) -> CGFloat {
-        if index < recorder.step { return 1 }
-        guard index == recorder.step, case .recording(_, let fraction) = recorder.progress else { return 0 }
-        return fraction
+        if index < step { return 1 }
+        return index == step ? fraction ?? 0 : 0
     }
 }
 
@@ -236,24 +278,45 @@ private struct OpennessMeter: View {
     }
 }
 
-/// The two steps of trying a calibration, ticked as they happen.
-private struct TrialChecklist: View {
-    let trial: HandCalibrationFlow.Trial
+/// What the trial has recognised so far, and where the hand is held.
+private struct TrialResults: View {
+    let flow: HandCalibrationFlow
 
     var body: some View {
-        HStack(spacing: 20) {
-            item("Grab", done: trial != .waitingForGrab)
-            item("Drop", done: trial == .dropped)
+        VStack(spacing: 8) {
+            HStack(spacing: 20) {
+                count("Grabs", flow.grabs, active: flow.isHolding)
+                count("Drops", flow.drops, active: false)
+            }
+            if flow.aim != nil {
+                Label {
+                    Text(aimedName)
+                        .contentTransition(.opacity)
+                } icon: {
+                    Image(systemName: "hand.point.up.left")
+                }
+                .foregroundStyle(.secondary)
+            }
         }
         .font(.callout)
+        .animation(.smooth(duration: 0.2), value: flow.aimedAt)
     }
 
-    private func item(_ title: String, done: Bool) -> some View {
+    private var aimedName: String {
+        guard let id = flow.aimedAt, let display = flow.displays.first(where: { $0.id == id }) else {
+            return "Hold your hand towards a display"
+        }
+        return "Towards \(display.name)"
+    }
+
+    private func count(_ title: String, _ value: Int, active: Bool) -> some View {
         Label {
-            Text(title)
+            Text("\(title) \(value)")
+                .monospacedDigit()
         } icon: {
-            Image(systemName: done ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(done ? AnyShapeStyle(.green) : AnyShapeStyle(.tertiary))
+            Image(systemName: value > 0 ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(value > 0 ? AnyShapeStyle(.green) : AnyShapeStyle(.tertiary))
+                .symbolEffect(.pulse, isActive: active)
                 .contentTransition(.symbolEffect(.replace))
         }
     }

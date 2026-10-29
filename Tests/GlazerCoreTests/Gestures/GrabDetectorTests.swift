@@ -217,6 +217,17 @@ struct DisplayHistoryTests {
         #expect(DisplayHistory().display(at: 0) == nil)
     }
 
+    @Test("A display can be required near a moment")
+    func near() {
+        var history = DisplayHistory()
+        history.record(1, at: 0)
+        history.record(2, at: 2)
+
+        #expect(history.display(near: 0.3, within: 0.5) == 1)
+        #expect(history.display(near: 1.9, within: 0.5) == 2)
+        #expect(history.display(near: 1, within: 0.5) == nil)
+    }
+
     @Test("Old entries are forgotten")
     func forgets() {
         var history = DisplayHistory(span: 2)

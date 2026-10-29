@@ -23,6 +23,7 @@ public final class Preferences {
         static let switchShortcut = "switchShortcut"
         static let gesturesEnabled = "gesturesEnabled"
         static let handCalibration = "handCalibration"
+        static let handAim = "handAim"
     }
 
     /// The range offered for ``switchDelay``, in seconds.
@@ -105,6 +106,18 @@ public final class Preferences {
         }
         set {
             store.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: Key.handCalibration)
+        }
+    }
+
+    /// Where the user holds their hand for each display, when calibration could tell the
+    /// displays apart that way.
+    public var handAim: HandAim? {
+        get {
+            guard let data = store.object(forKey: Key.handAim) as? Data else { return nil }
+            return try? JSONDecoder().decode(HandAim.self, from: data)
+        }
+        set {
+            store.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: Key.handAim)
         }
     }
 }

@@ -99,6 +99,16 @@ final class AppModel {
     /// The user's open hand and fist, as the camera sees them.
     private(set) var handCalibration: HandCalibration?
 
+    /// Where the user holds their hand for each display, when calibration could tell the
+    /// displays apart that way. Without it, gestures go to the display the user faces.
+    private(set) var handAim: HandAim?
+
+    /// Whether gestures choose a display by where the hand is held, for the connected
+    /// displays.
+    var aimsWithHand: Bool {
+        handAim?.covers(displays) == true
+    }
+
     /// Why gestures that are on can't work yet, or `nil` when they can or are off.
     var gestureIssue: GestureIssue? {
         guard gesturesEnabled else { return nil }
@@ -199,6 +209,7 @@ final class AppModel {
         calibration = preferences.calibration
         gesturesEnabled = preferences.gesturesEnabled
         handCalibration = preferences.handCalibration
+        handAim = preferences.handAim
 
         // Only whether a template exists: that never makes macOS ask for the Keychain.
         faceLock = vault.hasTemplate ? .stored : .off
@@ -389,10 +400,12 @@ final class AppModel {
         gaze.calibrateHands(handler: onFrame)
     }
 
-    func finishHandCalibration(with calibration: HandCalibration) {
+    func finishHandCalibration(with calibration: HandCalibration, aim: HandAim?) {
         gaze.stop()
         handCalibration = calibration
         preferences.handCalibration = calibration
+        handAim = aim
+        preferences.handAim = aim
         refresh()
     }
 
@@ -456,7 +469,8 @@ final class AppModel {
         if followsWithCamera, calibration != nil {
             loadFaceTemplateIfNeeded()
         }
-        gaze.setGestures(gestureIssue == nil && gesturesEnabled ? handCalibration : nil)
+        gaze.setGestures(
+            gestureIssue == nil && gesturesEnabled ? handCalibration : nil, aim: aimsWithHand ? handAim : nil)
         if followsWithCamera, attention == nil, let calibration {
             gaze.follow(displays: displays, calibration: calibration, verifier: verifier, switchDelay: switchDelay)
         } else {

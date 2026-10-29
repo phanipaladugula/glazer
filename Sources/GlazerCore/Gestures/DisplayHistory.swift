@@ -29,6 +29,14 @@ public struct DisplayHistory: Sendable {
         entries.last { $0.time <= timestamp }?.display ?? entries.first?.display
     }
 
+    /// The display recorded nearest to `timestamp`, if one was within `tolerance` of it.
+    public func display(near timestamp: TimeInterval, within tolerance: TimeInterval) -> Display.ID? {
+        entries
+            .filter { abs($0.time - timestamp) <= tolerance }
+            .min { abs($0.time - timestamp) < abs($1.time - timestamp) }?
+            .display
+    }
+
     public mutating func removeAll() {
         entries.removeAll()
     }

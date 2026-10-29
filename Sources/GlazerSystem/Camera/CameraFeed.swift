@@ -39,6 +39,8 @@ public final class CameraFeed: NSObject, @unchecked Sendable {
         var deviceID: String?
         var wantsSignatures = false
         var wantsHands = false
+        /// Where to look for hands; the whole image when `nil`.
+        var handArea: CGRect?
         var lastAnalysis: TimeInterval = -.infinity
         var isConfigured = false
     }
@@ -116,6 +118,13 @@ public final class CameraFeed: NSObject, @unchecked Sendable {
             applyPreset()
             session.commitConfiguration()
         }
+    }
+
+    /// Where to look for hands, in normalised image coordinates: around the user, so
+    /// distant hands are read in more detail and other people's are left out. `nil` looks
+    /// everywhere.
+    public func setHandArea(_ area: CGRect?) {
+        state.withLock { $0.handArea = area }
     }
 
     /// Chooses the resolution for whether hands are wanted. Call inside a configuration.
@@ -216,15 +225,16 @@ extension CameraFeed: AVCaptureVideoDataOutputSampleBufferDelegate {
         let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
         let minimumInterval = 1 / framesPerSecond
 
-        let job = state.withLock { state -> (handler: @Sendable (Frame) -> Void, signatures: Bool, hands: Bool)? in
+        let job = state.withLock { state -> (handler: @Sendable (Frame) -> Void, signatures: Bool, hands: CGRect?)? in
             guard let handler = state.onFrame, timestamp - state.lastAnalysis >= minimumInterval else { return nil }
             state.lastAnalysis = timestamp
-            return (handler, state.wantsSignatures, state.wantsHands)
+            let whole = CGRect(x: 0, y: 0, width: 1, height: 1)
+            return (handler, state.wantsSignatures, state.wantsHands ? state.handArea ?? whole : nil)
         }
         guard let job, let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
         let frame = analyzer.analyze(
-            pixelBuffer, at: timestamp, includeSignatures: job.signatures, includeHands: job.hands)
+            pixelBuffer, at: timestamp, includeSignatures: job.signatures, handArea: job.hands)
         job.handler(frame)
     }
 }

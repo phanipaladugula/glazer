@@ -35,6 +35,25 @@ struct GazeEngineTests {
         #expect(outputs.allSatisfy { $0.focusedDisplay == nil && $0.switchedTo == nil })
     }
 
+    @Test("The user's face is reported while they're followed")
+    func userFace() {
+        var engine = GazeEngine(calibration: nil)
+        let followed = run(&engine, from: 0, seconds: 1, yaw: 0)
+        let empty = engine.process(frame(at: 1))
+
+        #expect(followed.last?.userFace == face().bounds)
+        #expect(empty.userFace == nil)
+    }
+
+    @Test("The nearest face is the biggest")
+    func nearestFace() {
+        let small = face(x: 0.2, size: 0.1)
+        let big = face(x: 0.7, size: 0.3)
+
+        #expect(frame(at: 0, small, big).nearestFace == big)
+        #expect(frame(at: 0).nearestFace == nil)
+    }
+
     @Test("An empty, well-lit view is searching")
     func searching() {
         var engine = GazeEngine(calibration: twoDisplayCalibration)
