@@ -58,6 +58,9 @@ All notable changes to Glazer are recorded here. The format follows
   rarely after. Glazer now moves keyboard focus first, checks it moved, and only then
   moves the pointer. Without Accessibility it pauses and says so, and it resumes by
   itself once access is allowed.
+- Updating while Glazer was running could fail to reopen it (macOS error -600), because
+  the app was replaced before the old copy had exited. The install script now waits for
+  it to quit, and a failed launch no longer reports a successful install as an error.
 - Displays stacked one above the other were told apart mostly by head turn, which shifts
   when the user moves in their chair, so focus could go to the wrong display. Head turn
   and tilt are now weighted by how the displays are actually arranged.

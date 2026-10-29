@@ -143,12 +143,18 @@ check "...and leaves no app behind" not_installed "$workspace/tty-cancelled"
 
 # --- GitHub Actions only: things that would change this Mac's real settings ---------------
 #
-# Uninstalling deletes Glazer's real settings, permissions and face lock item, and the sudo
-# test needs passwordless sudo. Only GitHub's throwaway runners run these. (Not keyed on
+# Uninstalling deletes Glazer's real settings, permissions and face lock item, updating
+# over a running copy quits any running Glazer, and the sudo test needs passwordless sudo. Only GitHub's throwaway runners run these. (Not keyed on
 # CI, which developers often have set.)
 
 if [[ "${GITHUB_ACTIONS:-}" == true && "${RUNNER_ENVIRONMENT:-}" == github-hosted ]]; then
     check "running under sudo is refused with exit 77" bash -c 'sudo -n /bin/bash "$0" --no-open >/dev/null 2>&1; [[ $? -eq 77 ]]' "$installer"
+    running_dir="$workspace/running"
+    install_from "$package" "$running_dir"
+    "$running_dir/Glazer.app/Contents/MacOS/Glazer" >/dev/null 2>&1 &
+    sleep 3
+    check "updating over a running copy quits it and replaces the app" install_from "$package" "$running_dir"
+    check "...and the old copy has exited" bash -c '! pgrep -x Glazer >/dev/null'
     uninstall_dir="$workspace/uninstall"
     install_from "$package" "$uninstall_dir"
     check "uninstall removes the app" bash -c \
