@@ -25,7 +25,7 @@ version="$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)"
 version="${version:-0.0.0}"
 build="$(git rev-list --count HEAD 2>/dev/null || echo 0)"
 
-echo "Building Glazer $version ($build), $configuration…"
+echo "Building Glazer ${version} (${build}), ${configuration}…"
 swift build --configuration "$configuration" --product Glazer
 binary="$(swift build --configuration "$configuration" --show-bin-path)/Glazer"
 
