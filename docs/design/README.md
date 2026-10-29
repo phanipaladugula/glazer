@@ -166,9 +166,7 @@ A 440 × 540 pt window modelled on Face ID setup.
 ## Settings
 
 A standard Settings window with grouped forms and five tabs: General, Displays, Face
-Lock, Privacy and Diagnostics. General includes **Keyboard follows**: "When I start
-typing" (default), "While I hold Fn" or "Right away", with a footer that explains the
-selected mode in one sentence. Diagnostics shows live readings (faces in view, head yaw and
+Lock, Privacy and Diagnostics. Diagnostics shows live readings (faces in view, head yaw and
 pitch, brightness, match score) so people can see what Glazer sees, without any image.
 
 ## Global shortcut

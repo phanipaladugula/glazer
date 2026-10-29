@@ -33,18 +33,12 @@ so it always tells you the truth.
 
 ## The keyboard
 
-To move keyboard focus at the right moment, Glazer needs to know when you start typing,
-and in hold key mode, whether Fn is held. It watches key events with a macOS event tap
-(the same mechanism text expanders and shortcut apps use), which needs Accessibility
-access.
+So that it never switches displays while you're typing, Glazer notices when you press a
+key. It uses a read-only macOS event monitor, which needs Accessibility access.
 
-From each key event it reads exactly two things: **that a key went down, and when**, and
-**whether Fn is held**. It never reads which key you pressed or what you typed, and it
-stores nothing. When focus moves on a keystroke, that key is held for 60 milliseconds and
-then delivered, unchanged, to the new window.
-
-In **Right away** mode, Glazer doesn't watch the keyboard at all. The code is in
-`Sources/GlazerSystem/Focus/KeyboardMonitor.swift`.
+From each key press it reads only **the time**. It never reads which key you pressed or
+what you typed, it can't block or change a keystroke, and it stores nothing. The code is
+in `Sources/GlazerSystem/Focus/TypingMonitor.swift`.
 
 ## What Glazer stores
 
@@ -81,7 +75,7 @@ The face lock template is biometric data, so it gets extra protection:
 | Permission | Why | Without it |
 |---|---|---|
 | Camera | To see which display you're facing | Glazer can't work |
-| Accessibility | To bring the window you last used on a display to the front, and to know when you start typing | The pointer still moves, but macOS may not bring the window forward, and keyboard focus moves right away instead of when you type |
+| Accessibility | To bring the window you last used on a display to the front, and to know when you're typing | The pointer still moves, but macOS may not bring the window forward, and Glazer may switch while you type |
 | Touch ID or password | To confirm it's you before face lock is set up or deleted | Face lock can't be set up |
 
 ## Removing everything

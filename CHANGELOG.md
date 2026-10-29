@@ -8,12 +8,10 @@ All notable changes to Glazer are recorded here. The format follows
 
 ### Added
 
-- Keyboard focus follows when you start typing, not just when you look. The pointer moves
-  to the display you face right away, but keyboard focus moves on your next keystroke after
-  a pause, so talking to someone, or typing while you look elsewhere, never sends your
-  typing to the wrong window.
-- Settings › General › Keyboard follows: when I start typing (default), while I hold Fn,
-  or right away.
+- Glazer never switches displays while you're typing. Keep typing while you look at
+  notes or talk to someone, and your words stay where they are. Stop typing for a second
+  while facing another display, and focus moves there, ready for you. Glazer only notes
+  when a key is pressed, never which key.
 
 ## [0.1.1] - 2026-10-29
 

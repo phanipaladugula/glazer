@@ -1,43 +1,42 @@
-# 0005. Keyboard focus follows typing, not just gaze
+# 0005. Don't switch displays while the user is typing
 
 **Status:** Accepted
 
 ## Context
 
 Glazer knows which display the user's head faces, not what they're paying attention to.
-Some everyday moments look identical to "I want to type on that display":
+The most harmful mistake it can make is moving focus while the user is typing, which sends
+their words into the wrong window. That happens whenever they type on one display while
+facing another: looking at notes, at a reference, or at someone they're talking to.
 
-- turning towards someone who sits or stands beyond the other display, to talk;
-- typing on one display, by touch, while facing the other.
-
-Moving keyboard focus whenever the head turns gets both wrong, and typing into the wrong
-window is worse than not switching at all.
+The first version of this decision added three modes: keyboard focus that moved on a
+fresh start of typing (holding back and replaying the first keystroke), a hold-Fn mode,
+and an immediate mode. In use, that was more machinery and more choice than the problem
+needed, and intercepting keystrokes was the most fragile part of the app.
 
 ## Decision
 
-Moving the pointer and moving keyboard focus are separate decisions, made by
-`FocusPolicy`. There are three modes, chosen in Settings:
+Typing is a stronger signal than gaze. While the user types, focus stays where it is,
+however their head turns. When they've stopped typing for about a second and face
+another display, focus moves there, so it's ready before they type again.
 
-- **Automatic (default).** The pointer moves as soon as the user faces another display,
-  which shows them Glazer is ready. Keyboard focus moves only on a *fresh start* of
-  typing: the first keystroke after at least 1.5 s without typing. Keystrokes in an
-  ongoing burst never move focus. That key is held for 60 ms while the new window becomes
-  key, then delivered there.
-- **Hold key.** Nothing moves unless Fn is held.
-- **Immediate.** The pointer and focus move together, as before this decision.
+- `TypingGuard` (GlazerCore) holds a switch back while keys are being pressed and releases
+  it after a one-second pause. If the user faces the original display again first, the
+  switch is dropped. It is a plain value, unit-tested with invented times.
+- `TypingMonitor` (GlazerSystem) observes key presses with a read-only global event
+  monitor. It reads only the time of each press: not which key, not what was typed. It
+  can't block or change a keystroke, and stores nothing.
 
-Knowing when the user types needs a keyboard event tap. `KeyboardMonitor` reads only that
-a key went down, its time, and whether Fn is held. It never reads which key or what was
-typed, and stores nothing.
+There is no setting. One behaviour, designed to be right.
 
 ## Consequences
 
-- Talking towards the other display moves at most the pointer, and it comes back when the
-  user faces their display again.
-- Typing while facing the other display stays in the window it started in.
-- One case remains: stop typing, face the other display for a while, then start typing
-  without looking back. The first keystroke switches. Hold key mode covers people for whom
-  that's common.
-- The event tap needs Accessibility access, which Glazer already asks for to raise windows.
-  Without it, Glazer falls back to immediate mode and Settings says so.
-- The privacy statement must describe the keyboard monitor precisely, and does.
+- Typing while facing another display never moves focus.
+- Glances during typing never move focus.
+- After typing stops, facing another display moves focus as before. Turning to talk to
+  someone near the other display moves focus there too. That's harmless, since the user
+  isn't typing, and it moves back when they face their display again.
+- macOS delivers other apps' key events only with Accessibility access, which Glazer
+  already asks for to raise windows. Without it, Glazer sees no typing and switches as
+  soon as the user faces another display.
+- No keystrokes are intercepted, delayed or replayed.

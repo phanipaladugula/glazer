@@ -50,12 +50,11 @@ GlazerCore     Pure decision logic and value types. No AppKit, no hardware
 5. **DisplayClassifier** finds the nearest calibrated display. It switches only when that
    display is clearly nearer than the current one (by a margin) for long enough (the
    dwell), and it ignores poses far from every display.
-6. **FocusPolicy** decides what a switch does. By default the pointer moves at once and
-   keyboard focus follows on a fresh start of typing, so looking towards a display to talk
-   to someone never moves where you type ([ADR 0005](adr/0005-keyboard-focus-follows-typing.md)).
-   **KeyboardMonitor** tells it when keys go down, never which keys.
-7. **FocusController** moves the pointer, and gives keyboard focus to the frontmost window
-   on the target display.
+6. **TypingGuard** holds a switch back while the user is typing, and lets it through once
+   they've paused for a second ([ADR 0005](adr/0005-no-switching-while-typing.md)).
+   **TypingMonitor** tells it when keys are pressed, never which keys.
+7. **FocusController** focuses the frontmost window on the target display and returns the
+   pointer to where it was there.
 
 ## Modules
 
@@ -67,7 +66,7 @@ GlazerCore     Pure decision logic and value types. No AppKit, no hardware
 | `Tracking/` | `UserTracker`, `OneEuroFilter`, `HeadPoseFilter`, `LightMeter` |
 | `Calibration/` | `Calibration`, `CalibrationRecorder`, `DisplayClassifier` |
 | `Identity/` | `FaceSignature`, `FaceTemplate` (with its learned threshold), `IdentityVerifier`, `FaceEnrollment` |
-| `Engine/` | `GazeEngine`, which ties the pipeline together, and `FocusPolicy`, which decides when the pointer and keyboard focus move |
+| `Engine/` | `GazeEngine`, which ties the pipeline together, and `TypingGuard`, which holds switches back while the user types |
 | `Display/` | `Display`, `DisplayLayout`, lookup by point |
 | `Settings/` | `Preferences`: on/off, setup state, switch delay, calibration |
 | `Models/` | `KeyboardShortcut` |
@@ -79,7 +78,7 @@ GlazerCore     Pure decision logic and value types. No AppKit, no hardware
 | `Camera/` | `CameraFeed`, `CameraAccess` |
 | `Vision/` | `FrameAnalyzer` |
 | `Security/` | `FaceVault` (Keychain), `OwnerAuthentication` (Touch ID or password) |
-| `Focus/` | `FocusController`, `KeyboardMonitor`, `AccessibilityAccess` |
+| `Focus/` | `FocusController`, `TypingMonitor`, `AccessibilityAccess` |
 | `Display/` | `DisplayMonitor` |
 | `HotKey/` | `HotKey`, a global shortcut through Carbon |
 | `Login/` | `LaunchAtLogin` |
