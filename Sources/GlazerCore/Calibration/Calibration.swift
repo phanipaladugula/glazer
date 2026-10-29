@@ -44,10 +44,10 @@ public struct Calibration: Equatable, Sendable, Codable {
     ///
     /// - Parameter minimumSeparation: The smallest distance, in degrees, that two
     ///   displays' poses may be apart.
-    public func issue(minimumSeparation: Double = 6, pitchWeight: Double = 0.6) -> Issue? {
+    public func issue(minimumSeparation: Double = 6, weights: AxisWeights = .sideBySide) -> Issue? {
         for (index, first) in points.enumerated() {
             for second in points[(index + 1)...]
-            where first.pose.distance(to: second.pose, pitchWeight: pitchWeight) < minimumSeparation {
+            where first.pose.distance(to: second.pose, weights: weights) < minimumSeparation {
                 return .tooClose(first.displayID, second.displayID)
             }
         }

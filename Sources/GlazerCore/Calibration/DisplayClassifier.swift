@@ -13,8 +13,9 @@ public struct DisplayClassifier: Sendable {
         public var margin: Double = 3
         /// Poses further than this, in degrees, from every display are ignored.
         public var maximumDistance: Double = 40
-        /// The weight of pitch relative to yaw. See ``HeadPose/distance(to:pitchWeight:)``.
-        public var pitchWeight: Double = 0.6
+        /// How much head turn and head tilt count. Set from the display arrangement; see
+        /// ``AxisWeights/init(arranging:floor:)``.
+        public var weights = AxisWeights.sideBySide
 
         public init() {}
     }
@@ -42,7 +43,7 @@ public struct DisplayClassifier: Sendable {
     @discardableResult
     public mutating func update(with pose: HeadPose, at timestamp: TimeInterval) -> Display.ID? {
         let distances = calibration.points.map {
-            (id: $0.displayID, distance: pose.distance(to: $0.pose, pitchWeight: configuration.pitchWeight))
+            (id: $0.displayID, distance: pose.distance(to: $0.pose, weights: configuration.weights))
         }
         guard let nearest = distances.min(by: { $0.distance < $1.distance }),
             nearest.distance <= configuration.maximumDistance

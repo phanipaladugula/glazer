@@ -43,8 +43,12 @@ final class CalibrationSession {
     private var recorder = CalibrationRecorder()
     private var points: [Calibration.Point] = []
 
+    /// How much head turn and tilt count, from how the displays are arranged.
+    let weights: AxisWeights
+
     init(displays: [Display]) {
         self.displays = displays.sorted { $0.frame.minX < $1.frame.minX }
+        weights = AxisWeights(arranging: displays)
     }
 
     var currentDisplay: Display? {
@@ -69,7 +73,7 @@ final class CalibrationSession {
         // Don't record the next display until the user has turned away from the last one,
         // or a slow turn would record the previous display's pose twice.
         if !hasTurned, let previous = points.last?.pose {
-            guard pose.distance(to: previous, pitchWeight: 0.6) >= minimumTurn else {
+            guard pose.distance(to: previous, weights: weights) >= minimumTurn else {
                 hint = .turnToDisplay
                 progress = 0
                 return
@@ -121,6 +125,6 @@ final class CalibrationSession {
         }
 
         let calibration = Calibration(points: points)
-        phase = calibration.issue() == nil ? .finished(calibration) : .failed(.displaysTooClose)
+        phase = calibration.issue(weights: weights) == nil ? .finished(calibration) : .failed(.displaysTooClose)
     }
 }
