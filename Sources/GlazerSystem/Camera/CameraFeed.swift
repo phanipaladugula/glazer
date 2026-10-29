@@ -13,6 +13,8 @@ public final class CameraFeed: NSObject, @unchecked Sendable {
     public enum Failure: Error, Equatable {
         case noCamera
         case cannotOpenCamera
+        /// The camera stopped while running: it was disconnected, or the system stopped it.
+        case interrupted
     }
 
     /// The capture session, for showing a live preview during face lock setup. Glazer
@@ -32,6 +34,9 @@ public final class CameraFeed: NSObject, @unchecked Sendable {
 
     private struct State {
         var onFrame: (@Sendable (Frame) -> Void)?
+        var onStop: (@Sendable (Failure) -> Void)?
+        /// The unique ID of the camera the session uses.
+        var deviceID: String?
         var wantsSignatures = false
         var lastAnalysis: TimeInterval = -.infinity
         var isConfigured = false
@@ -40,12 +45,27 @@ public final class CameraFeed: NSObject, @unchecked Sendable {
     public init(framesPerSecond: Double = 12) {
         self.framesPerSecond = framesPerSecond
         super.init()
+
+        let center = NotificationCenter.default
+        center.addObserver(
+            self, selector: #selector(sessionFailed(_:)), name: AVCaptureSession.runtimeErrorNotification,
+            object: session)
+        center.addObserver(
+            self, selector: #selector(deviceDisconnected(_:)), name: AVCaptureDevice.wasDisconnectedNotification,
+            object: nil)
     }
 
     /// Starts the camera and calls `onFrame` on a background queue for each analysed
-    /// frame. Calling it again replaces the handler.
-    public func start(onFrame: @escaping @Sendable (Frame) -> Void) async throws {
-        state.withLock { $0.onFrame = onFrame }
+    /// frame. If the camera later stops by itself, `onStop` is called once, with why.
+    /// Calling it again replaces both handlers.
+    public func start(
+        onFrame: @escaping @Sendable (Frame) -> Void,
+        onStop: @escaping @Sendable (Failure) -> Void = { _ in }
+    ) async throws {
+        state.withLock {
+            $0.onFrame = onFrame
+            $0.onStop = onStop
+        }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             sessionQueue.async { [self] in
                 do {
@@ -63,7 +83,10 @@ public final class CameraFeed: NSObject, @unchecked Sendable {
 
     /// Stops the camera. The system's camera indicator turns off.
     public func stop() {
-        state.withLock { $0.onFrame = nil }
+        state.withLock {
+            $0.onFrame = nil
+            $0.onStop = nil
+        }
         sessionQueue.async { [self] in
             if session.isRunning {
                 session.stopRunning()
@@ -77,14 +100,27 @@ public final class CameraFeed: NSObject, @unchecked Sendable {
         state.withLock { $0.wantsSignatures = wantsSignatures }
     }
 
+    /// Sets up the session with the preferred camera, or rebuilds it when the camera it
+    /// was using has gone away.
     private func configureIfNeeded() throws {
-        guard !state.withLock({ $0.isConfigured }) else { return }
+        let current = state.withLock { $0.isConfigured ? $0.deviceID : nil }
+        if let current, AVCaptureDevice(uniqueID: current)?.isConnected == true {
+            return
+        }
 
         guard let device = Self.preferredCamera() else { throw Failure.noCamera }
         guard let input = try? AVCaptureDeviceInput(device: device) else { throw Failure.cannotOpenCamera }
 
         session.beginConfiguration()
         defer { session.commitConfiguration() }
+
+        // Start from an empty session, so a failed or stale setup can't block this one.
+        session.inputs.forEach(session.removeInput)
+        session.outputs.forEach(session.removeOutput)
+        state.withLock {
+            $0.isConfigured = false
+            $0.deviceID = nil
+        }
 
         if session.canSetSessionPreset(.vga640x480) {
             session.sessionPreset = .vga640x480
@@ -98,11 +134,40 @@ public final class CameraFeed: NSObject, @unchecked Sendable {
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
         ]
         output.setSampleBufferDelegate(self, queue: outputQueue)
-        guard session.canAddOutput(output) else { throw Failure.cannotOpenCamera }
+        guard session.canAddOutput(output) else {
+            session.removeInput(input)
+            throw Failure.cannotOpenCamera
+        }
         session.addOutput(output)
 
-        state.withLock { $0.isConfigured = true }
+        let deviceID = device.uniqueID
+        state.withLock {
+            $0.isConfigured = true
+            $0.deviceID = deviceID
+        }
         Logger.camera.info("Camera configured: \(device.localizedName, privacy: .public)")
+    }
+
+    @objc private func sessionFailed(_ notification: Notification) {
+        Logger.camera.error("Camera session failed: \(String(describing: notification.userInfo))")
+        reportStop(.interrupted)
+    }
+
+    @objc private func deviceDisconnected(_ notification: Notification) {
+        guard let device = notification.object as? AVCaptureDevice else { return }
+        let deviceID = device.uniqueID
+        guard state.withLock({ $0.deviceID == deviceID }) else { return }
+        Logger.camera.info("Camera disconnected: \(device.localizedName, privacy: .public)")
+        reportStop(.interrupted)
+    }
+
+    /// Calls the stop handler once, if the camera is running.
+    private func reportStop(_ failure: Failure) {
+        let handler = state.withLock { state -> (@Sendable (Failure) -> Void)? in
+            defer { state.onStop = nil }
+            return state.onFrame == nil ? nil : state.onStop
+        }
+        handler?(failure)
     }
 
     /// The built-in camera if there is one, otherwise the system's default.
