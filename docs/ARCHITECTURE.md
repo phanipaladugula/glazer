@@ -125,7 +125,10 @@ camera at all.
 | `GlazerCoreTests` | Every decision: tracking, filtering, light, calibration, classification, the engine end to end, face signatures and enrolment, preferences |
 | `GlazerSystemTests` | Frame analysis with real Vision on synthetic camera images |
 
-Run `Scripts/test.sh`. It works with only the Command Line Tools installed.
+| `Tests/Install` | The install script, run as users run it: options, installing and updating, rejecting forged checksums, corrupted downloads and impostor apps, the animated terminal output in a real pseudo-terminal, and Ctrl-C |
+
+Run `Scripts/test.sh` (add `--min-coverage 95` for the coverage gate) and
+`Tests/Install/run.sh`. Both work with only the Command Line Tools installed.
 
 ## Tools
 

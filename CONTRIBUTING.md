@@ -12,6 +12,7 @@ xcode-select --install   # Command Line Tools, if you don't have Xcode
 git clone https://github.com/phanipaladugula/glazer.git
 cd glazer
 Scripts/test.sh          # run the tests
+Scripts/lint.sh          # run the static checks CI runs
 Scripts/bundle.sh --open # build dist/Glazer.app and launch it
 swift run glazer-camera-check  # check the camera and head tracking live
 ```
@@ -28,9 +29,23 @@ Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) first. In short:
 - **UI goes in `GlazerApp`**, and follows [the design spec](docs/design/README.md).
   Visible changes to the UI should update the spec too.
 
+## Checks
+
+CI runs four jobs on every pull request, and all must pass:
+
+| Job | Checks | Run it yourself |
+|---|---|---|
+| Lint | ShellCheck, actionlint, Markdown links, the README figure matches its source | `Scripts/lint.sh` (install `shellcheck` and `actionlint` with Homebrew for every check) |
+| Build and test | Formatting, debug and release builds with warnings as errors, tests, GlazerCore coverage of at least 95% | `Scripts/test.sh --warnings-as-errors --min-coverage 95` |
+| Package and smoke test | The universal app, its signature, entitlements and icon, the installer test suite, and launching the app | `Scripts/bundle.sh --universal && Scripts/package.sh && Tests/Install/run.sh` |
+| Release (dry run) | The release pipeline, on changes to packaging | Tag a release; see [docs/RELEASING.md](docs/RELEASING.md) |
+
 ## Standards
 
 - Format with `Scripts/format.sh` before committing. CI runs `Scripts/format.sh --check`.
+- Shell scripts source `Scripts/lib/common.sh` for strict mode, error reporting, logging and
+  `--help`, and must pass ShellCheck. `install.sh` is the exception: it stands alone because
+  it runs through `curl | bash`, and it must work with macOS's bash 3.2.
 - Every change to `GlazerCore` comes with tests, written with Swift Testing.
 - Public types and non-obvious functions get a doc comment that says what, not how.
 - No third-party dependencies without discussing it in an issue first. A camera app has

@@ -30,6 +30,12 @@ All notable changes to Glazer are recorded here. The format follows
 - Setup explains that without Accessibility only the pointer moves, and the menu bar
   panel offers to fix it.
 
+- CI runs lint, build and test, and package jobs in parallel: ShellCheck, actionlint,
+  link checks, warnings as errors, a 95% coverage gate on the core logic, a 25-case
+  installer test suite, and a launch smoke test.
+- Developer scripts share a library for strict mode, error reporting and `--help`, and
+  `Scripts/lint.sh` runs the same static checks as CI.
+
 ### Security
 
 - The install script compares the checksum directly, checks the app is signed as Glazer
