@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// The symbol shown in the menu bar. The `eye` symbols share a width, so the menu bar
-/// doesn't shift when the state changes.
+/// doesn't shift as the camera's state changes. Switching only by key shows a keyboard,
+/// so the menu bar never suggests the camera is watching when it isn't.
 struct MenuBarIcon: View {
     let condition: AppModel.Condition
 

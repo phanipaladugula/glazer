@@ -39,7 +39,7 @@ final class GazeController {
     }
 
     @ObservationIgnored let camera = CameraFeed()
-    @ObservationIgnored private let focus = FocusController()
+    @ObservationIgnored private let focus: FocusController
     @ObservationIgnored private let typing = TypingMonitor()
     @ObservationIgnored private var typingGuard = TypingGuard(focusedDisplay: nil)
     @ObservationIgnored private var engine: GazeEngine?
@@ -60,6 +60,10 @@ final class GazeController {
     /// The display that has focus: where Glazer last moved it, or where the user moved the
     /// pointer. A switch held back while the user types doesn't change it.
     private(set) var focusedDisplay: Display.ID?
+
+    init(focus: FocusController) {
+        self.focus = focus
+    }
 
     // MARK: Modes
 
@@ -210,6 +214,18 @@ final class GazeController {
         focusedDisplay = current
         engine?.userFocused(current)
         typingGuard.userFocused(current)
+    }
+
+    /// Moves focus to `target` because the user asked to, such as with the switch key.
+    /// Focus stays there until the user turns their head to another display.
+    @discardableResult
+    func switchManually(to target: Display.ID) -> Bool {
+        guard focus.focus(target, leaving: pointerDisplay) else { return false }
+        pointerDisplay = target
+        focusedDisplay = target
+        engine?.userFocused(target)
+        typingGuard.userFocused(target)
+        return true
     }
 
     /// Moves focus to the display the user faces, once they aren't typing.

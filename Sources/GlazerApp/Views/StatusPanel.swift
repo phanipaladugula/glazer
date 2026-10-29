@@ -12,9 +12,12 @@ struct StatusPanel: View {
         let presentation = ConditionPresentation(model.condition)
 
         VStack(spacing: 0) {
-            StatusHeader(presentation: presentation, isEnabled: $model.isEnabled)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+            StatusHeader(
+                presentation: presentation, isEnabled: $model.isEnabled,
+                usesCamera: model.switchingMethod.usesCamera
+            )
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
 
             if let callout = presentation.callout {
                 CalloutCard(text: callout.text, button: callout.button) {
@@ -42,8 +45,10 @@ struct StatusPanel: View {
                     shortcut: model.toggleShortcut.displayString,
                     action: model.toggle
                 )
-                MenuRow("Calibrate Displays…") { perform(.calibrate) }
-                    .disabled(!model.canCalibrate)
+                if model.switchingMethod.usesCamera {
+                    MenuRow("Calibrate Displays…") { perform(.calibrate) }
+                        .disabled(!model.canCalibrate)
+                }
                 MenuRow("Settings…", shortcut: "⌘,") { showSettings() }
                     .keyboardShortcut(",")
             }
@@ -100,10 +105,12 @@ struct StatusPanel: View {
 private struct StatusHeader: View {
     let presentation: ConditionPresentation
     @Binding var isEnabled: Bool
+    /// Whether Glazer watches with the camera, or only listens for the switch key.
+    let usesCamera: Bool
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: isEnabled ? "eye" : "eye.slash")
+            Image(systemName: isEnabled ? (usesCamera ? "eye" : "keyboard") : "eye.slash")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(presentation.isActive ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
                 .frame(width: 26, height: 26)
