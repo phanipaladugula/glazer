@@ -10,10 +10,19 @@ public protocol KeyValueStore: AnyObject {
 extension UserDefaults: KeyValueStore {}
 
 /// Settings that persist between launches.
+///
+/// Only settings live here. The face template is biometric data and lives in the
+/// Keychain instead; see `FaceVault` in GlazerSystem.
 public final class Preferences {
     private enum Key {
         static let isEnabled = "isEnabled"
+        static let hasCompletedSetup = "hasCompletedSetup"
+        static let switchDelay = "switchDelay"
+        static let calibration = "calibration"
     }
+
+    /// The range offered for ``switchDelay``, in seconds.
+    public static let switchDelayRange: ClosedRange<Double> = 0.2...1.5
 
     private let store: KeyValueStore
 
@@ -25,5 +34,32 @@ public final class Preferences {
     public var isEnabled: Bool {
         get { store.object(forKey: Key.isEnabled) as? Bool ?? true }
         set { store.set(newValue, forKey: Key.isEnabled) }
+    }
+
+    /// Whether the user has been through setup: permissions and calibration.
+    public var hasCompletedSetup: Bool {
+        get { store.object(forKey: Key.hasCompletedSetup) as? Bool ?? false }
+        set { store.set(newValue, forKey: Key.hasCompletedSetup) }
+    }
+
+    /// How long the user must face another display before focus moves, in seconds.
+    public var switchDelay: Double {
+        get {
+            let value = store.object(forKey: Key.switchDelay) as? Double ?? 0.5
+            return min(max(value, Self.switchDelayRange.lowerBound), Self.switchDelayRange.upperBound)
+        }
+        set { store.set(newValue, forKey: Key.switchDelay) }
+    }
+
+    /// The saved calibration. Head angles only: no images and nothing that identifies the
+    /// user.
+    public var calibration: Calibration? {
+        get {
+            guard let data = store.object(forKey: Key.calibration) as? Data else { return nil }
+            return try? JSONDecoder().decode(Calibration.self, from: data)
+        }
+        set {
+            store.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: Key.calibration)
+        }
     }
 }
