@@ -2,16 +2,15 @@ import GlazerCore
 import SwiftUI
 
 /// The displays in their real arrangement, drawn like System Settings › Displays, with
-/// the focused one highlighted.
+/// the focused one highlighted. Each name is drawn inside its own display, so it can't
+/// land on a neighbour, such as a display stacked below.
 struct DisplayMap: View {
     let displays: [Display]
 
     /// The display in focus, or `nil` when nothing is being followed.
     let focusedID: Display.ID?
 
-    private let mapHeight: CGFloat = 56
-    private let labelGap: CGFloat = 5
-    private let labelHeight: CGFloat = 13
+    private let mapHeight: CGFloat = 76
 
     var body: some View {
         GeometryReader { proxy in
@@ -25,18 +24,10 @@ struct DisplayMap: View {
                     DisplayTile(display: item.display, isFocused: item.id == focusedID)
                         .frame(width: item.rect.width, height: item.rect.height)
                         .offset(x: item.rect.minX, y: item.rect.minY)
-
-                    Text(item.display.shortName)
-                        .font(.caption2)
-                        .foregroundStyle(item.id == focusedID ? .primary : .secondary)
-                        .lineLimit(1)
-                        .frame(width: item.rect.width + 6)
-                        .offset(x: item.rect.minX - 3, y: item.rect.maxY + labelGap)
-                        .accessibilityHidden(true)
                 }
             }
         }
-        .frame(height: mapHeight + labelGap + labelHeight)
+        .frame(height: mapHeight)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Displays")
     }
@@ -62,6 +53,15 @@ private struct DisplayTile: View {
             .clipShape(shape)
             .overlay {
                 shape.strokeBorder(.separator, lineWidth: 0.5)
+            }
+            .overlay {
+                Text(display.shortName)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(isFocused ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .padding(.horizontal, 4)
+                    .accessibilityHidden(true)
             }
             .animation(.easeOut(duration: 0.18), value: isFocused)
             .accessibilityElement()
