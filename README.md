@@ -79,18 +79,49 @@ third-party dependencies, so every claim can be checked in the code.
 
 ## Install
 
-**Requirements:** macOS 15 Sequoia or later, a camera, and two displays.
+**Requirements:** macOS 15 Sequoia or later on Apple silicon or Intel, a camera, and two displays.
 
-Signed releases are coming with version 0.1. Until then, build from source. You need only
-Apple's Command Line Tools (`xcode-select --install`), not Xcode.
+Paste this into Terminal:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/phanipaladugula/glazer/main/install.sh | bash
+```
+
+The [install script](install.sh) downloads the latest release, checks its SHA-256 checksum
+and code signature, installs Glazer into Applications and opens it. It doesn't use `sudo`
+and installs nothing else.
+
+<details>
+<summary><b>Other ways to install</b></summary>
+
+**Read the script first.** Download it, read it, then run it:
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/phanipaladugula/glazer/main/install.sh
+less install.sh
+bash install.sh
+```
+
+**A specific version:** `bash install.sh --version 0.1.0`
+
+**Download manually.** Get `Glazer.zip` from the [latest release](https://github.com/phanipaladugula/glazer/releases/latest),
+unzip it and move Glazer to Applications. Releases are signed ad hoc, not with an Apple
+Developer ID, so the first time, right-click Glazer and choose **Open**.
+
+**Build from source.** You need only Apple's Command Line Tools (`xcode-select --install`):
 
 ```sh
 git clone https://github.com/phanipaladugula/glazer.git
 cd glazer
 Scripts/bundle.sh --open
 ```
+</details>
 
-This builds `dist/Glazer.app` and opens it. Move it to `/Applications` to keep it.
+**Update** by running the install command again. **Uninstall** with:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/phanipaladugula/glazer/main/install.sh | bash -s -- --uninstall
+```
 
 ## Getting started
 
@@ -164,10 +195,11 @@ switches.
 </details>
 
 <details>
-<summary><b>macOS asks for Keychain access after I rebuild the app</b></summary>
+<summary><b>After an update, Glazer asks for permissions again</b></summary>
 
-Builds from source are signed ad hoc, so macOS treats each rebuild as a new app and asks
-before it reads the face lock entry. Choose **Always Allow**. Signed releases won't ask.
+Releases are signed ad hoc, not with an Apple Developer ID, so macOS treats each new
+version as a new app. Allow the camera and Accessibility again, and choose **Always
+Allow** if macOS asks about Glazer's Keychain item. Your calibration and settings are kept.
 </details>
 
 <details>
@@ -188,7 +220,8 @@ Then delete face lock in Settings, or remove the "Glazer face lock" item in Keyc
 - [x] Calibration, and moving the pointer and keyboard focus
 - [x] Low-light detection
 - [x] Face lock, stored in the Keychain behind Touch ID
-- [ ] Signed and notarised release, Homebrew cask
+- [x] One-line install from GitHub releases, universal for Apple silicon and Intel
+- [ ] Developer ID signing and notarisation, Homebrew cask
 - [ ] Three or more displays in a row, and stacked displays
 - [ ] Optional iPhone companion that uses Face ID's infrared camera for dark rooms
 
