@@ -9,6 +9,7 @@ final class CalibrationCoordinator {
     private var windows: [OverlayWindow] = []
     private var session: CalibrationSession?
     private var completion: ((Calibration?) -> Void)?
+    private var screenObserver: NSObjectProtocol?
 
     init(gaze: GazeController) {
         self.gaze = gaze
@@ -43,20 +44,31 @@ final class CalibrationCoordinator {
         NSApp.activate()
         windows.first { $0.screen == NSScreen.main }?.makeKeyAndOrderFront(nil)
 
+        // The overlays and the displays being calibrated are fixed at the start. If a
+        // display is connected or removed, the run can't finish sensibly, so it stops.
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.finish(with: nil) }
+        }
+
         record(verifier: verifier)
     }
 
     /// Runs the camera until every display is recorded, then turns it off while the result
     /// is shown.
     private func record(verifier: IdentityVerifier?) {
-        gaze.calibrate(verifier: verifier) { [weak self] frame, output in
-            guard let self, let session else { return }
-            session.add(output, at: frame.timestamp)
-            switch session.phase {
-            case .finished, .failed: gaze.stop()
-            case .recording: break
-            }
-        }
+        gaze.calibrate(
+            verifier: verifier,
+            handler: { [weak self] frame, output in
+                guard let self, let session else { return }
+                session.add(output, at: frame.timestamp)
+                switch session.phase {
+                case .finished, .failed: gaze.stop()
+                case .recording: break
+                }
+            },
+            onFailure: { [weak self] _ in self?.session?.cameraStopped() })
     }
 
     private func retry(verifier: IdentityVerifier?) {
@@ -74,6 +86,11 @@ final class CalibrationCoordinator {
     }
 
     private func finish(with calibration: Calibration?) {
+        guard session != nil else { return }
+        if let screenObserver {
+            NotificationCenter.default.removeObserver(screenObserver)
+            self.screenObserver = nil
+        }
         gaze.stop()
         windows.forEach { $0.orderOut(nil) }
         windows.removeAll()
