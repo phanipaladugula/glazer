@@ -22,8 +22,10 @@ Apple's Vision framework, which reports:
 - which way each face is turned (yaw and pitch);
 - with face lock on, a face signature for up to three faces, only when Glazer needs to check who is in view;
 - the frame's average brightness;
-- with hand gestures on, where the joints of the nearest hand are, reduced straight away
-  to three numbers that say how open it is.
+- with hand gestures on, where the joints of hands near the user are, reduced straight away
+  to three numbers that say how open each hand is, and where it is. Hands are looked for
+  only in the area around the user's face, and only a hand that could be the user's is
+  used; other people's are ignored.
 
 The frame is then dropped. Only the numbers above are kept, and only until the next frame.
 
@@ -75,7 +77,7 @@ Your screenshots are yours: Glazer doesn't keep a list of them or delete them.
 
 | What | Where | Contains |
 |---|---|---|
-| Settings | User defaults (`io.github.phanipaladugula.glazer`) | On/off, setup done, how you switch and with which shortcut, switch delay, the head angles calibrated at the centre and corners of each display, whether hand gestures are on, and your hand calibration: six numbers for your open hand and fist, and how much they vary |
+| Settings | User defaults (`io.github.phanipaladugula.glazer`) | On/off, setup done, how you switch and with which shortcut, switch delay, the head angles calibrated at the centre and corners of each display, whether hand gestures are on, and your hand calibration: six numbers for your open hand and fist and how much they vary, and, for each display, where you hold your hand relative to your face (two numbers) |
 | Screenshots you grab | Your screenshots folder, and the clipboard | The screen of the display you faced when you grabbed |
 | Face lock template | Your login Keychain, item "Glazer face lock" | Face signatures from setup, and the match threshold learned from them |
 

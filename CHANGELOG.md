@@ -13,8 +13,12 @@ All notable changes to Glazer are recorded here. The format follows
   your screenshots and copies it. Turn to another display and open your hand: if the
   pointer is on a text box there, Glazer pastes the screenshot into it; otherwise it opens
   the screenshot on that display. Turn it on in **Settings › Gestures**.
-- **Hand calibration.** Glazer records your open hand and your fist, then lets you try a
-  grab and a drop, so it reads your hand in your light at your distance.
+- **Hand calibration.** Glazer records your open hand and your fist, then where you hold
+  your hand for each display, and lets you try grabs and drops, so it reads your hand in
+  your light at your distance and sends each gesture to the display your hand is towards.
+- Only your hand counts: hands are matched to your face by position and size, so other
+  people's hands in view are ignored. Glazer reads the area around you in more detail,
+  so hands are read from further back.
 - `glazer-camera-check --hands` prints how open the camera sees your hand.
 
 ### Fixed

@@ -178,21 +178,35 @@ for it.
 
 Move a screenshot from one display to another with your hand:
 
-1. **Grab.** Facing a display, raise your hand open, then close it into a fist. Glazer
+1. **Grab.** Hold your open hand up towards a display, then close it into a fist. Glazer
    takes a screenshot of that display (only that one), plays the shutter sound, saves it
    with your other screenshots and copies it.
-2. **Carry.** Keep your fist closed and turn to another display. A thumbnail follows you.
+2. **Carry.** Keep your fist closed and move it towards another display, such as your
+   laptop. A thumbnail follows you.
 3. **Drop.** Open your hand. If the pointer is on a text box or message field there, such
    as a chat or an email, Glazer pastes the screenshot into it. Otherwise it opens the
    screenshot on that display.
 
-Before the first grab, **calibrate your hand**: Glazer records your open hand and your fist
-twice each, about 15 seconds, and then lets you try a grab and a drop. Hands, cameras and
-lighting differ too much for one setting to suit everyone, so Glazer compares each frame
-with your own two shapes rather than a fixed threshold.
+Before the first grab, **calibrate your hand** (about half a minute):
 
-A fist on its own never takes a screenshot: the hand must be open just before and stay in
-place as it closes, so holding a mug or resting your chin on your hand doesn't count.
+- **Your open hand and your fist**, twice each. Hands, cameras and lighting differ too much
+  for one setting to suit everyone, so Glazer compares each frame with your own two
+  shapes rather than a fixed threshold.
+- **Each display.** A prompt appears on each display in turn; look there and hold your open
+  hand towards it. Glazer learns where your hand is, relative to your face, for each
+  display, so a gesture goes to the display your hand is held towards. If your hand is in
+  much the same place for every display, Glazer says so and uses where you look instead.
+- **Try it.** Grab and drop a few times; Glazer counts what it recognised and shows which
+  display your hand is towards, without taking a screenshot.
+
+Only **your** hand counts: one beside or in front of your face, the right size for how far
+you sit. Hands of other people in view are ignored, and with face lock on, only the
+enrolled person's hand counts. A fist on its own never takes a screenshot either: the hand
+must be open just before and stay in place as it closes, so holding a mug or resting your
+chin on your hand doesn't count.
+
+Glazer looks for your hand only in the area around you and reads that area in more detail,
+which is what lets it read a hand from further back. Calibrate where you usually sit.
 Gestures need **Screen Recording** permission to take the screenshot.
 [ADR 0009](docs/adr/0009-grab-and-drop-with-hand-gestures.md) explains how it works.
 

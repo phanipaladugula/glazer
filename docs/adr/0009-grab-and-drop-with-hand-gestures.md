@@ -29,10 +29,19 @@ the worst failure, so the design leans towards missing a gesture over inventing 
   hand). A calibration whose two shapes are less than four typical variations apart is
   refused, with advice (more light, hand closer). After calibrating, the user tries a
   grab and a drop before saving.
-- **The biggest hand wins**, and a palm smaller than 4% of the image height is ignored, so
-  someone further back can't take screenshots.
-- **1280×720 while gestures are on**, instead of 640×480: a hand at arm's length is only a
-  few dozen pixels across at VGA.
+- **Only the user's hand counts.** A hand is the user's only if it's within three face
+  widths beside the face, one and a half face heights above or two and a half below its
+  middle, and its palm is 0.2–1.6 times the face's height. Measuring in the user's own face
+  units keeps the rules the same near the camera and far from it, and rules out someone
+  further back (too small) or beside the user (too far). Of the hands that qualify, the
+  nearest to the face wins. The face is the one the engine follows, so with face lock on
+  only the enrolled person's hand can count. With no face seen for two seconds, no hand
+  counts.
+- **Look only around the user, in detail.** Vision scales whatever image it's given to a
+  fixed size, so hands are searched for in a crop around the user's face rather than the
+  whole frame: a distant hand gets several times more detail, and hands elsewhere in the
+  room aren't even looked at. The camera also runs at 1280×720 instead of 640×480 while
+  gestures are on.
 - Fingertips hidden behind the knuckles in a fist are still used at low confidence: Vision
   places them roughly right, which is all the measures need.
 
@@ -47,9 +56,15 @@ the worst failure, so the design leans towards missing a gesture over inventing 
 - **A drop** is the fist opening for 0.2 s. A grab held 15 s, or with the hand out of view
   for 4 s, is cancelled. Readings are smoothed over three frames, so one misread frame
   can't start or end anything, and there's a 1 s pause after each drop.
-- **Which display:** the one faced when the gesture began (when the hand was last seen
-  open, or started opening), from a short `DisplayHistory`. A raised hand often hides the
-  face by the time the gesture is recognised.
+- **Which display:** the one the hand was held towards when the gesture began (when the
+  hand was last seen open, or started opening). During calibration the user holds their
+  open hand towards each display in turn, and Glazer records where it is relative to the
+  face. A hand is held towards a display when it's within three typical variations of
+  that display's position and clearly nearer it than any other. Calibration refuses
+  positions closer than four variations apart, and then gestures use the display the user
+  faced instead, as they do whenever the hand's position isn't clear. Both come from a
+  short history, because a raised hand often hides the face by the time the gesture is
+  recognised.
 
 ### Acting on it
 
@@ -86,4 +101,8 @@ the worst failure, so the design leans towards missing a gesture over inventing 
   an app can record the screen.
 - The thresholds were tuned on drawn hands and the measures' known geometry. Real-world
   tuning comes from `glazer-camera-check --hands` and the Diagnostics tab, which show the
-  live openness.
+  live openness, the display the hand is towards and how many other hands were ignored,
+  and from the counts in calibration's trial.
+- The camera can't see where a hand points, only where it is. Held towards displays that
+  sit close together, the hand may be in much the same place for each; calibration says
+  so, and the user's head decides.

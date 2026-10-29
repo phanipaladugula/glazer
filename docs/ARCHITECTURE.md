@@ -81,7 +81,7 @@ doesn't pull it straight back.
 | `Display/` | `Display`, `DisplayLayout`, lookup by point, reading order |
 | `Settings/` | `Preferences`: on/off, setup state, switching method and key, switch delay, calibration |
 | `Models/` | `KeyboardShortcut`, with the rules for a switch shortcut |
-| `Gestures/` | `HandJoints` and `HandFeatures` (how open a hand is, scale-free), `HandCalibration` and its recorder, `GrabDetector` (grab and drop), `DisplayHistory` |
+| `Gestures/` | `HandJoints` and `HandFeatures` (how open a hand is, scale-free), `HandCalibration` and its recorder, `UserHand` (which hand is the user's, and where to look for it), `HandAim` and its recorder (which display the hand is held towards), `GrabDetector` (grab and drop), `DisplayHistory` |
 
 ### GlazerSystem
 
@@ -123,10 +123,12 @@ The camera is on only in four modes, all owned by `GazeController`:
 | Enrolling | During face lock setup |
 | Calibrating hands | During hand calibration for gestures |
 
-While following with hand gestures on, frames also carry the nearest hand, and
-`GazeController` feeds it to a `GrabDetector`. Each grab or drop goes to the display the
-user faced when it began, from a `DisplayHistory`, because a raised hand often hides the
-face by the time the gesture is recognised
+While following with hand gestures on, frames also carry the hands found in the area
+around the user's face, read from a cropped image for detail. `GazeController` keeps only
+the user's hand (`UserHand`) and feeds it to a `GrabDetector`. Each grab or drop goes to the
+display the hand was held towards when it began (`HandAim`), or failing that the display
+the user faced, from a `DisplayHistory`, because a raised hand often hides the face by the
+time the gesture is recognised
 ([ADR 0009](adr/0009-grab-and-drop-with-hand-gestures.md)).
 
 Otherwise the camera is off. With only one display connected, or when switching by key
