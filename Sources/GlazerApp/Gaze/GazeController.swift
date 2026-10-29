@@ -52,6 +52,14 @@ final class GazeController {
     /// Bumped on every start and stop, so a camera start that finishes late can tell it's
     /// been superseded.
     @ObservationIgnored private var generation = 0
+    /// When the frontmost app turned Secure Event Input on, if it has.
+    @ObservationIgnored private var secureInputSince: TimeInterval?
+    /// Told when the camera stops by itself while calibrating or enrolling.
+    @ObservationIgnored private var failureHandler: ((CameraFeed.Failure) -> Void)?
+
+    /// The display that has focus: where Glazer last moved it, or where the user moved the
+    /// pointer. A switch held back while the user types doesn't change it.
+    private(set) var focusedDisplay: Display.ID?
 
     // MARK: Modes
 
@@ -77,6 +85,7 @@ final class GazeController {
 
         self.displays = displays
         pointerDisplay = Self.displayUnderPointer(in: displays)
+        focusedDisplay = pointerDisplay
         engine.setFocusedDisplay(pointerDisplay)
         typingGuard = TypingGuard(focusedDisplay: pointerDisplay)
         typing.start { [weak self] timestamp in
@@ -86,8 +95,12 @@ final class GazeController {
     }
 
     /// Reports the user's pose to `handler` on every frame, without moving focus.
-    func calibrate(verifier: IdentityVerifier?, handler: @escaping (Frame, GazeEngine.Output?) -> Void) {
+    func calibrate(
+        verifier: IdentityVerifier?, handler: @escaping (Frame, GazeEngine.Output?) -> Void,
+        onFailure: @escaping (CameraFeed.Failure) -> Void
+    ) {
         start(.calibrating, engine: GazeEngine(calibration: nil, verifier: verifier), handler: handler)
+        failureHandler = onFailure
     }
 
     /// Reports every frame, with signatures for each face, to `handler`.
@@ -105,6 +118,8 @@ final class GazeController {
         mode = .idle
         engine = nil
         frameHandler = nil
+        failureHandler = nil
+        focusedDisplay = nil
         output = nil
         diagnostics = Diagnostics()
         frameTimes.removeAll()
@@ -134,8 +149,9 @@ final class GazeController {
                     onStop: { [weak self] failure in
                         Task { @MainActor in self?.cameraStopped(failure, generation: generation) }
                     })
-                // A stop or another start may have happened while the camera was starting.
-                if generation != self.generation { camera.stop() }
+                // If Glazer was stopped while the camera was starting, stop it now. If another
+                // start has happened since, leave the camera to it.
+                if generation != self.generation, mode == .idle { camera.stop() }
             } catch {
                 let failure = error as? CameraFeed.Failure ?? .cannotOpenCamera
                 Logger.app.error("Camera failed to start: \(String(describing: failure))")
@@ -146,8 +162,19 @@ final class GazeController {
 
     private func cameraStopped(_ failure: CameraFeed.Failure, generation: Int) {
         guard generation == self.generation else { return }
+        let handler = failureHandler
         stop()
         cameraFailure = failure
+        handler?(failure)
+    }
+
+    /// Restarts the typing monitor, such as after Accessibility is granted: macOS only
+    /// delivers other apps' key presses to a monitor added while Glazer is trusted.
+    func restartTypingMonitor() {
+        guard mode == .following else { return }
+        typing.start { [weak self] timestamp in
+            self?.typingGuard.keyPressed(at: timestamp)
+        }
     }
 
     // MARK: Frames
@@ -177,35 +204,48 @@ final class GazeController {
         let current = Self.displayUnderPointer(in: displays)
         guard let current, current != pointerDisplay else { return }
         pointerDisplay = current
-        if current != output.focusedDisplay {
-            engine?.setFocusedDisplay(current)
-            typingGuard.userFocused(current)
-        }
+        focusedDisplay = current
+        engine?.userFocused(current)
+        typingGuard.userFocused(current)
     }
 
     /// Moves focus to the display the user faces, once they aren't typing.
     private func moveFocus(_ output: GazeEngine.Output) {
         let now = ProcessInfo.processInfo.systemUptime
-        // Typing in a password field hides keystrokes from the typing monitor. Treat it as
-        // typing, so focus never moves mid-password.
-        if typing.isSecureInputActive {
+        if isTypingSecurely(at: now) {
             typingGuard.keyPressed(at: now)
         }
         let target =
             if let faced = output.switchedTo {
                 typingGuard.userFaces(faced, at: now)
             } else {
-                typingGuard.release(at: now)
+                typingGuard.release(at: now, facing: output.facingDisplay)
             }
         guard let target else { return }
         if focus.focus(target, leaving: pointerDisplay) {
             pointerDisplay = target
+            focusedDisplay = target
         } else {
             // Focus couldn't move, such as during a drag. Undo the decision, so the switch
             // happens normally once the user faces that display again after letting go.
             engine?.setFocusedDisplay(pointerDisplay)
             if let pointerDisplay { typingGuard.userFocused(pointerDisplay) }
         }
+    }
+
+    /// Whether the user is probably typing a password: the frontmost app turned Secure
+    /// Event Input on within the last 15 seconds. Longer than that, it's more likely an app
+    /// that leaves it on, which mustn't stop Glazer for good.
+    private func isTypingSecurely(at now: TimeInterval) -> Bool {
+        guard let owner = typing.secureInputOwner else {
+            secureInputSince = nil
+            return false
+        }
+        let frontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        guard owner == 0 || owner == frontmost else { return false }
+        let since = secureInputSince ?? now
+        secureInputSince = since
+        return now - since < 15
     }
 
     private func updateDiagnostics(with frame: Frame) {
@@ -216,7 +256,10 @@ final class GazeController {
         let score: Double? =
             if let signature = nearest?.signature, let verifier = engine?.tracker.verifier {
                 verifier.score(signature)
+            } else if nearest == nil {
+                nil
             } else {
+                // Signatures aren't computed on every frame; keep the last score meanwhile.
                 diagnostics.matchScore
             }
 
