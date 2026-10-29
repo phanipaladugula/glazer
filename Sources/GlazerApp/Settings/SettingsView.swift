@@ -189,11 +189,22 @@ private struct FaceLockSettings: View {
                 .padding(.vertical, 4)
             }
 
-            if model.faceLockNeedsReenrolment {
+            if model.faceLock == .needsReenrolment {
                 Section {
                     Label(
-                        "This version of Glazer reads faces differently. Set up face lock again to keep using it.",
+                        "This version of Glazer reads faces differently. Delete your face and set up face lock "
+                            + "again to keep using it. Until then, Glazer follows the nearest person.",
                         systemImage: "arrow.triangle.2.circlepath")
+                }
+            } else if model.faceLock == .unreadable {
+                Section {
+                    HStack {
+                        Label(
+                            "Glazer couldn't read your face lock from the Keychain, so it's paused.",
+                            systemImage: "key.slash")
+                        Spacer()
+                        Button("Try Again") { model.retryFaceLock() }
+                    }
                 }
             }
 

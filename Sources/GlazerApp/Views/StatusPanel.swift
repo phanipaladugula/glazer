@@ -90,6 +90,8 @@ struct StatusPanel: View {
             SystemSettings.open(.camera)
         case .calibrate:
             model.calibrate()
+        case .retryFaceLock:
+            model.retryFaceLock()
         }
     }
 

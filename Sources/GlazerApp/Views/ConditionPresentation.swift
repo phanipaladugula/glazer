@@ -8,6 +8,7 @@ struct ConditionPresentation {
         case openSetup
         case openCameraSettings
         case calibrate
+        case retryFaceLock
     }
 
     /// The panel's status line.
@@ -54,6 +55,13 @@ struct ConditionPresentation {
                 callout: nil)
         case .attention(.secondDisplayNeeded):
             self.init("Waiting for a second display", symbol: "eye", active: false)
+        case .attention(.faceLockUnavailable):
+            self.init(
+                "Paused: face lock can't be read", symbol: "eye.trianglebadge.exclamationmark", active: false,
+                callout: (
+                    "Glazer couldn't read your face lock from the Keychain, so it's paused rather than "
+                        + "following just anyone.", "Try Again", .retryFaceLock
+                ))
         case .attention(.calibrationNeeded):
             self.init(
                 "Displays not calibrated", symbol: "eye.trianglebadge.exclamationmark", active: false,
