@@ -35,8 +35,9 @@ public struct FaceSignature: Equatable, Sendable, Codable {
 /// The signatures enrolled for the user, taken from several angles.
 public struct FaceTemplate: Equatable, Sendable, Codable {
     /// Bumped when the signature format changes, so an old template is recognised as
-    /// stale instead of silently failing to match.
-    public static let currentVersion = 1
+    /// stale instead of silently failing to match. Version 2 crops signatures to the exact
+    /// face box.
+    public static let currentVersion = 2
 
     /// The range a learned ``threshold`` is kept within.
     public static let thresholdRange: ClosedRange<Double> = 0.5...0.97
@@ -46,16 +47,24 @@ public struct FaceTemplate: Equatable, Sendable, Codable {
 
     /// The similarity a face must reach to count as the user, learned from enrolment.
     ///
-    /// For each enrolled signature, enrolment finds its closest match among the others:
-    /// how similar the user looks to themselves across angles. The threshold sits just
-    /// below the weakest of those, so the user is always accepted at any angle they
-    /// enrolled at, and anyone who looks less like the user than that is rejected.
+    /// For each enrolled signature, it finds the closest match among the signatures taken
+    /// at *other* head angles: how alike the user looks to themselves after turning. The
+    /// threshold sits just below the weakest of those, so the user is accepted at any
+    /// angle they enrolled at. Comparing across angles matters: samples at one angle are
+    /// taken a moment apart and are near copies, and a threshold learned from them would
+    /// reject the user as soon as the light changed.
     public let threshold: Double
 
-    public init(signatures: [FaceSignature], version: Int = FaceTemplate.currentVersion, margin: Double = 0.04) {
+    /// - Parameter groups: Signatures grouped by the head angle they were taken at.
+    public init(groups: [[FaceSignature]], version: Int = FaceTemplate.currentVersion, margin: Double = 0.04) {
         self.version = version
-        self.signatures = signatures
-        threshold = Self.learnThreshold(from: signatures, margin: margin)
+        signatures = groups.flatMap { $0 }
+        threshold = Self.learnThreshold(from: groups.filter { !$0.isEmpty }, margin: margin)
+    }
+
+    /// A template from signatures taken at a single angle.
+    public init(signatures: [FaceSignature], version: Int = FaceTemplate.currentVersion, margin: Double = 0.04) {
+        self.init(groups: signatures.map { [$0] }, version: version, margin: margin)
     }
 
     public var isCurrent: Bool {
@@ -67,12 +76,15 @@ public struct FaceTemplate: Equatable, Sendable, Codable {
         signatures.map { $0.similarity(to: signature) }.max() ?? 0
     }
 
-    private static func learnThreshold(from signatures: [FaceSignature], margin: Double) -> Double {
-        let selfSimilarities = signatures.indices.compactMap { index -> Double? in
-            signatures.indices
-                .filter { $0 != index }
-                .map { signatures[index].similarity(to: signatures[$0]) }
-                .max()
+    private static func learnThreshold(from groups: [[FaceSignature]], margin: Double) -> Double {
+        var selfSimilarities: [Double] = []
+        for (index, group) in groups.enumerated() {
+            let others = groups.enumerated().filter { $0.offset != index }.flatMap(\.element)
+            for signature in group {
+                if let best = others.map({ signature.similarity(to: $0) }).max() {
+                    selfSimilarities.append(best)
+                }
+            }
         }
         let weakest = selfSimilarities.min() ?? thresholdRange.upperBound
         return min(max(weakest - margin, thresholdRange.lowerBound), thresholdRange.upperBound)

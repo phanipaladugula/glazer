@@ -19,8 +19,8 @@ public struct FaceEnrollment: Sendable {
         public var minimumFaceArea: Double = 0.03
         /// The detector confidence needed for a sample.
         public var minimumConfidence: Double = 0.8
-        /// Every sample must be at least this similar to the first one.
-        public var minimumConsistency: Double = 0.7
+        /// Every new sample must be at least this similar to one already taken.
+        public var minimumConsistency: Double = 0.6
 
         public init() {}
     }
@@ -63,7 +63,7 @@ public struct FaceEnrollment: Sendable {
     /// The finished template, once every range has its samples.
     public var template: FaceTemplate? {
         guard feedback == .done else { return nil }
-        return FaceTemplate(signatures: samples.flatMap { $0 })
+        return FaceTemplate(groups: samples)
     }
 
     @discardableResult
@@ -76,8 +76,11 @@ public struct FaceEnrollment: Sendable {
         guard face.area >= configuration.minimumFaceArea else { return set(.moveCloser) }
         guard frame.timestamp - lastSampleAt >= configuration.sampleInterval else { return feedback }
 
-        if let reference = samples.lazy.flatMap({ $0 }).first,
-            signature.similarity(to: reference) < configuration.minimumConsistency
+        // Compared with the closest sample so far, not the first: a face turned to the side
+        // looks less like a straight-on one, but it looks like the sample next to it.
+        let taken = samples.flatMap { $0 }
+        if !taken.isEmpty,
+            (taken.map { signature.similarity(to: $0) }.max() ?? 0) < configuration.minimumConsistency
         {
             samples = Array(repeating: [], count: configuration.yawRanges.count)
             return set(.restarted)

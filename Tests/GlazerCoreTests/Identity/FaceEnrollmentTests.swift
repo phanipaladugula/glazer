@@ -66,4 +66,19 @@ struct FaceEnrollmentTests {
         enrollment.add(alice(yaw: 0, at: 0.05))
         #expect(enrollment.rangeProgress[1] == 0.25)
     }
+
+    @Test("A turned face is compared with the closest sample, not the first")
+    func comparesWithClosest() {
+        var configuration = FaceEnrollment.Configuration()
+        configuration.minimumConsistency = 0.9
+        var enrollment = FaceEnrollment(configuration: configuration)
+        let straight = FaceSignature(values: [1, 0, 0])
+        let slightlyTurned = FaceSignature(values: [0.95, 0.31, 0])
+        let turned = FaceSignature(values: [0.81, 0.59, 0])
+
+        enrollment.add(frame(at: 0, face(size: 0.4, yaw: 0, signature: straight)))
+        enrollment.add(frame(at: 0.2, face(size: 0.4, yaw: 10, signature: slightlyTurned)))
+        // Only about 0.81 like the first sample, but about 0.96 like the second.
+        #expect(enrollment.add(frame(at: 0.4, face(size: 0.4, yaw: 20, signature: turned))) != .restarted)
+    }
 }

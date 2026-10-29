@@ -24,6 +24,9 @@ public struct UserTracker: Sendable {
         public var holdDuration: TimeInterval = 0.6
         /// With face lock, how often the followed face is checked again.
         public var reverifyInterval: TimeInterval = 2.0
+        /// With face lock, how many checks in a row the followed face must fail before the
+        /// tracker lets go. One poorly lit frame shouldn't drop the user.
+        public var allowedMismatches = 3
 
         public init() {}
     }
@@ -48,6 +51,7 @@ public struct UserTracker: Sendable {
     private var lockedBounds: CGRect?
     private var lastSeen: TimeInterval = -.infinity
     private var lastVerified: TimeInterval = -.infinity
+    private var mismatches = 0
 
     public init(configuration: Configuration = Configuration(), verifier: IdentityVerifier? = nil) {
         self.configuration = configuration
@@ -85,6 +89,7 @@ public struct UserTracker: Sendable {
         lockedBounds = nil
         lastSeen = -.infinity
         lastVerified = -.infinity
+        mismatches = 0
     }
 
     private func followed(in candidates: [DetectedFace], from bounds: CGRect) -> DetectedFace? {
@@ -98,11 +103,17 @@ public struct UserTracker: Sendable {
     /// Keeps following `face`, checking its identity when a check is due.
     private mutating func confirm(_ face: DetectedFace, at timestamp: TimeInterval) -> Outcome {
         if let verifier, let signature = face.signature {
-            guard verifier.matches(signature) else {
-                reset()
-                return .notRecognized
+            if verifier.matches(signature) {
+                mismatches = 0
+                lastVerified = timestamp
+            } else {
+                mismatches += 1
+                guard mismatches < configuration.allowedMismatches else {
+                    reset()
+                    return .notRecognized
+                }
+                // Keep following for now; the next frame checks again.
             }
-            lastVerified = timestamp
         }
         lock(face, at: timestamp)
         return .user(face)
