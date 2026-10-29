@@ -29,5 +29,9 @@ let package = Package(
             name: "GlazerCoreTests",
             dependencies: ["GlazerCore"]
         ),
+        .testTarget(
+            name: "GlazerSystemTests",
+            dependencies: ["GlazerSystem", "GlazerCore"]
+        ),
     ]
 )

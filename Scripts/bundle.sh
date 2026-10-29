@@ -38,7 +38,7 @@ sed -e "s/\$(VERSION)/$version/" -e "s/\$(BUILD)/$build/" \
     Resources/Info.plist > "$app/Contents/Info.plist"
 plutil -lint -s "$app/Contents/Info.plist"
 
-codesign --force --sign - --options runtime "$app"
+codesign --force --sign - --options runtime --entitlements Resources/Glazer.entitlements "$app"
 
 echo "Built $app"
 
