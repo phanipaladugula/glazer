@@ -6,6 +6,11 @@ All notable changes to Glazer are recorded here. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- The install script accepts only an app signed with Glazer's own certificate, so a
+  tampered download is rejected even if its checksum was replaced too.
+
 ## [0.3.0] - 2026-10-29
 
 ### Changed

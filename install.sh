@@ -18,6 +18,9 @@
 # Environment:
 #   GLAZER_INSTALL_DIR   Install here instead of /Applications.
 #   GLAZER_RELEASE_URL   Download from here instead of GitHub (for mirrors and testing).
+#   GLAZER_EXPECTED_SIGNER
+#                        The certificate fingerprint to require instead of Glazer's (for
+#                        testing); empty requires only the bundle ID.
 #   NO_COLOR             Plain output, without colour or animation.
 #
 # Works with the bash that ships with macOS (3.2).
@@ -30,8 +33,9 @@ readonly minimum_macos=15
 
 # Releases are signed with Glazer's own certificate. Its SHA-1 fingerprint is pinned here,
 # so a download that was tampered with is rejected even if its checksum was replaced too.
-# Empty until the project's signing identity exists; then only the bundle ID is checked.
-readonly expected_signer=""
+# Tests set GLAZER_EXPECTED_SIGNER to install a build signed another way; empty checks only
+# the bundle ID. (Whoever can set it could run anything anyway.)
+readonly expected_signer="${GLAZER_EXPECTED_SIGNER-9A1C93ABCF0EBCD6D460CAA07AF82A9E960719E9}"
 
 # Some networks can't reach every GitHub download server. A short connect timeout lets
 # curl give up on an unreachable server within seconds and try the next, instead of
@@ -443,8 +447,8 @@ download_zip() {
     walk_to 850
 }
 
-# Checks the app's signature is intact, that it really is Glazer, and, once the project
-# has a signing identity, that Glazer's certificate signed it.
+# Checks the app's signature is intact, that it really is Glazer, and that Glazer's
+# certificate signed it.
 verify_signature() {
     local app=$1 requirement="identifier \"$bundle_id\""
     if [[ -n "$expected_signer" ]]; then
