@@ -86,7 +86,9 @@ final class CameraCheck {
         line += "  ·  light \(light)" + String(format: " (%.0f%%)", frame.brightness * 100)
         if readsHands {
             // The user's hand, beside the biggest face, as Glazer picks it.
-            if let face = frame.nearestFace?.bounds, let hand = UserHand.hand(of: face, among: frame.hands) {
+            if let face = frame.nearestFace?.bounds,
+                let hand = UserHand.hand(of: face, among: frame.hands, aspectRatio: frame.aspectRatio)
+            {
                 let features = hand.features
                 line += String(
                     format: "  ·  hand %3.0f%% open  (reach %.2f, curl %.2f, spread %.2f, size %.2f)",
@@ -95,7 +97,8 @@ final class CameraCheck {
             } else {
                 line += frame.hands.isEmpty ? "  ·  no hand" : "  ·  \(frame.hands.count) hand(s), none yours"
             }
-            camera.setHandArea(frame.nearestFace.map { UserHand.searchArea(around: $0.bounds) })
+            camera.setHandArea(
+                frame.nearestFace.map { UserHand.searchArea(around: $0.bounds, aspectRatio: frame.aspectRatio) })
         }
 
         guard frame.timestamp - lastPrint >= 0.2 else { return }

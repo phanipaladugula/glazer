@@ -85,6 +85,15 @@ final class GazeController {
     @ObservationIgnored private var userFace: (bounds: CGRect, time: TimeInterval)?
     /// The user's hand in the latest frame.
     @ObservationIgnored private var userHand: HandReading?
+    /// The user's hand when last found, and when, to keep following it while a grab is
+    /// held if the face goes out of view.
+    @ObservationIgnored private var lastUserHand: (hand: HandReading, time: TimeInterval)?
+    /// The latest frame's width over its height.
+    @ObservationIgnored private var aspectRatio = 16.0 / 9.0
+    /// How the user's hand was found in the latest frame, for the log.
+    @ObservationIgnored private var handSource = "none"
+    /// When the hand was last logged while a grab was held.
+    @ObservationIgnored private var lastHoldLog = -TimeInterval.infinity
     /// What following was last started with, so an unchanged request doesn't restart it.
     @ObservationIgnored private var followed: (displays: [Display], calibration: Calibration, verifier: FaceTemplate?)?
     /// Bumped on every start and stop, so a camera start that finishes late can tell it's
@@ -196,6 +205,7 @@ final class GazeController {
         aimed.removeAll()
         userFace = nil
         userHand = nil
+        lastUserHand = nil
         camera.setHandArea(nil)
         camera.stop()
         typing.stop()
@@ -294,8 +304,22 @@ final class GazeController {
         } else if let last = userFace, frame.timestamp - last.time > 2 {
             userFace = nil
         }
-        userHand = userFace.flatMap { UserHand.hand(of: $0.bounds, among: frame.hands) }
-        camera.setHandArea(userFace.map { UserHand.searchArea(around: $0.bounds) })
+        aspectRatio = frame.aspectRatio
+        var hand = userFace.flatMap { UserHand.hand(of: $0.bounds, among: frame.hands, aspectRatio: aspectRatio) }
+        handSource = hand == nil ? "none" : "beside the face"
+        // Turning far towards another display can lose the face, or put the hand where it
+        // wouldn't be beside a face looking ahead. A grab is already the user's own hand,
+        // so while it's held, keep following that hand from frame to frame.
+        if hand == nil, grab?.phase == .holding, let last = lastUserHand, frame.timestamp - last.time < 1 {
+            hand = UserHand.hand(continuing: last.hand, among: frame.hands)
+            if hand != nil { handSource = "followed from the last frame" }
+        }
+        userHand = hand
+        if let hand {
+            lastUserHand = (hand, frame.timestamp)
+        }
+        // Around the face, or the whole image when it's gone, so a held hand isn't lost.
+        camera.setHandArea(userFace.map { UserHand.searchArea(around: $0.bounds, aspectRatio: aspectRatio) })
     }
 
     /// Turns a grab or drop into a ``Gesture`` for the display the hand was held towards
@@ -304,7 +328,9 @@ final class GazeController {
         guard grab != nil else { return }
         faced.record(output.facingDisplay ?? output.focusedDisplay, at: frame.timestamp)
         aimed.record(currentAim, at: frame.timestamp)
-        guard let event = grab?.update(userHand, at: frame.timestamp) else { return }
+        let event = grab?.update(userHand, at: frame.timestamp)
+        logHeldHand(in: frame, face: output.userFace != nil)
+        guard let event else { return }
 
         let gesture: Gesture? =
             switch event {
@@ -325,6 +351,17 @@ final class GazeController {
         }
     }
 
+    /// Once a second while a grab is held, what the camera sees of the hand, so a drop that
+    /// doesn't happen can be explained from the log.
+    private func logHeldHand(in frame: Frame, face: Bool) {
+        guard grab?.phase == .holding, frame.timestamp - lastHoldLog >= 1 else { return }
+        lastHoldLog = frame.timestamp
+        let openness = grab?.openness.map { String(format: "%.2f", $0) } ?? "no hand"
+        Logger.app.notice(
+            "Holding: openness \(openness, privacy: .public), hand \(self.handSource, privacy: .public), face \(face ? "seen" : "not seen", privacy: .public), \(frame.hands.count, privacy: .public) hands in view"
+        )
+    }
+
     /// The display a gesture that began at `timestamp` is for.
     private func target(at timestamp: TimeInterval) -> Display.ID? {
         aimed.display(near: timestamp, within: 0.6) ?? faced.display(at: timestamp) ?? focusedDisplay
@@ -333,12 +370,17 @@ final class GazeController {
     /// The display the user's hand is held towards now, when that's clear.
     private var currentAim: Display.ID? {
         guard let aim, let userHand, let face = userFace?.bounds else { return nil }
-        return aim.display(for: UserHand.offset(of: userHand, from: face))
+        return aim.display(for: UserHand.offset(of: userHand, from: face, aspectRatio: aspectRatio))
     }
 
     /// The user's hand in the latest frame, for hand calibration.
     var currentUserHand: HandReading? {
         userHand
+    }
+
+    /// The latest frame's width over its height, for hand calibration.
+    var currentAspectRatio: Double {
+        aspectRatio
     }
 
     /// Where the user's face was last seen, for hand calibration.

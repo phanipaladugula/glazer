@@ -56,7 +56,7 @@ the worst failure, so the design leans towards missing a gesture over inventing 
 - **A drop** is the held fist opening past 0.6 for 0.15 s. Once a grab is held, any clear
   opening is the drop, so it doesn't wait for the fingers to spread fully, and its
   readings aren't smoothed, so it follows the hand without lag; the 0.15 s keeps one
-  misread frame from dropping. A grab held 15 s, or with the hand out of view for 4 s, is
+  misread frame from dropping. A grab held 15 s, or with the hand out of view for 6 s, is
   cancelled. Grabs use readings smoothed over three frames, so one misread frame can't
   start one, and there's a 1 s pause after each drop.
 - **Which display:** the one the hand was held towards when the gesture began (when the

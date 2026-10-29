@@ -39,7 +39,7 @@ public struct GrabDetector: Sendable {
         /// The longest a grab is held before it's given up.
         public var holdLimit: TimeInterval = 15
         /// How long the hand may be out of view while held before the grab is given up.
-        public var lostLimit: TimeInterval = 4
+        public var lostLimit: TimeInterval = 6
         /// The pause after a drop or a cancel before the next grab can start.
         public var cooldown: TimeInterval = 1
 

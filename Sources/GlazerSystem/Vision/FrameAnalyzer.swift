@@ -64,7 +64,10 @@ struct FrameAnalyzer: Sendable {
             )
         }
         let hands = handArea.map { Self.hands(in: pixelBuffer, area: $0) } ?? []
-        return Frame(timestamp: timestamp, faces: faces, brightness: brightness, hands: hands)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+        let aspectRatio = height > 0 ? Double(CVPixelBufferGetWidth(pixelBuffer)) / Double(height) : 16.0 / 9.0
+        return Frame(
+            timestamp: timestamp, faces: faces, brightness: brightness, hands: hands, aspectRatio: aspectRatio)
     }
 
     /// The readable hands in `area` of the image, biggest first.

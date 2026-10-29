@@ -17,11 +17,18 @@ public struct Frame: Sendable {
     /// finding faces. Which one is the user's is decided with ``UserHand``.
     public let hands: [HandReading]
 
-    public init(timestamp: TimeInterval, faces: [DetectedFace], brightness: Double, hands: [HandReading] = []) {
+    /// The image's width divided by its height, to compare distances across and up.
+    public let aspectRatio: Double
+
+    public init(
+        timestamp: TimeInterval, faces: [DetectedFace], brightness: Double, hands: [HandReading] = [],
+        aspectRatio: Double = 16.0 / 9.0
+    ) {
         self.timestamp = timestamp
         self.faces = faces
         self.brightness = brightness
         self.hands = hands
+        self.aspectRatio = aspectRatio
     }
 
     /// The biggest face, which is the user's while nobody else is in view, such as during

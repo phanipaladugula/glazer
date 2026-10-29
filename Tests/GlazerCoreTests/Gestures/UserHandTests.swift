@@ -11,53 +11,70 @@ private func reading(x: Double, y: Double, size: Double = 0.15) -> HandReading {
     HandReading(features: features(bend: 0), centre: CGPoint(x: x, y: y), size: size, confidence: 0.9)
 }
 
+/// The image's width over its height, as at 1280×720.
+private let aspect = 16.0 / 9.0
+
+/// `heights` face heights beside the middle of the face, as a normalised image x.
+private func across(_ heights: Double) -> Double {
+    face.midX + heights * face.height / aspect
+}
+
 @Suite("User hand")
 struct UserHandTests {
     @Test("A hand raised beside the face is the user's")
     func beside() {
-        let hand = reading(x: 0.75, y: 0.6)
+        let hand = reading(x: across(1.5), y: 0.6)
 
-        #expect(UserHand.hand(of: face, among: [hand]) == hand)
+        #expect(UserHand.hand(of: face, among: [hand], aspectRatio: aspect) == hand)
     }
 
     @Test("A hand far to the side is someone else's")
     func farSide() {
-        #expect(UserHand.hand(of: face, among: [reading(x: 0.5 + 0.2 * 3.2, y: 0.6)]) == nil)
+        #expect(UserHand.hand(of: face, among: [reading(x: across(2.8), y: 0.6)], aspectRatio: aspect) == nil)
+    }
+
+    @Test("A face turned away looks narrower, but its hand still counts")
+    func turnedFace() {
+        // The same face, turned: half as wide, as tall as before.
+        let turned = CGRect(x: 0.45, y: face.minY, width: 0.1, height: face.height)
+        let hand = reading(x: across(2), y: 0.6)
+
+        #expect(UserHand.hand(of: turned, among: [hand], aspectRatio: aspect) == hand)
     }
 
     @Test("A hand well above or below the face isn't the user's")
     func aboveAndBelow() {
-        #expect(UserHand.hand(of: face, among: [reading(x: 0.5, y: 0.6 + 0.25 * 1.7)]) == nil)
-        #expect(UserHand.hand(of: face, among: [reading(x: 0.5, y: 0.6 - 0.25 * 2.7)]) == nil)
-        #expect(UserHand.hand(of: face, among: [reading(x: 0.5, y: 0.6 - 0.25 * 2)]) != nil)
+        #expect(UserHand.hand(of: face, among: [reading(x: 0.5, y: 0.6 + 0.25 * 1.7)], aspectRatio: aspect) == nil)
+        #expect(UserHand.hand(of: face, among: [reading(x: 0.5, y: 0.6 - 0.25 * 2.7)], aspectRatio: aspect) == nil)
+        #expect(UserHand.hand(of: face, among: [reading(x: 0.5, y: 0.6 - 0.25 * 2)], aspectRatio: aspect) != nil)
     }
 
     @Test("A hand too small for the user's distance is someone further back")
     func tooSmall() {
-        #expect(UserHand.hand(of: face, among: [reading(x: 0.7, y: 0.6, size: 0.03)]) == nil)
+        #expect(UserHand.hand(of: face, among: [reading(x: 0.7, y: 0.6, size: 0.03)], aspectRatio: aspect) == nil)
     }
 
     @Test("A hand far too big isn't a hand at all")
     func tooBig() {
-        #expect(UserHand.hand(of: face, among: [reading(x: 0.7, y: 0.6, size: 0.5)]) == nil)
+        #expect(UserHand.hand(of: face, among: [reading(x: 0.7, y: 0.6, size: 0.5)], aspectRatio: aspect) == nil)
     }
 
     @Test("Of two possible hands, the one nearer the face wins")
     func nearest() {
-        let near = reading(x: 0.65, y: 0.6)
-        let far = reading(x: 0.9, y: 0.55)
+        let near = reading(x: across(0.8), y: 0.6)
+        let far = reading(x: across(2), y: 0.55)
 
-        #expect(UserHand.hand(of: face, among: [far, near]) == near)
+        #expect(UserHand.hand(of: face, among: [far, near], aspectRatio: aspect) == near)
     }
 
     @Test("A face with no size matches no hand")
     func emptyFace() {
-        #expect(UserHand.hand(of: .zero, among: [reading(x: 0.5, y: 0.5)]) == nil)
+        #expect(UserHand.hand(of: .zero, among: [reading(x: 0.5, y: 0.5)], aspectRatio: aspect) == nil)
     }
 
-    @Test("Offsets are in face widths and heights")
+    @Test("Offsets are in face heights, across and up")
     func offset() {
-        let offset = UserHand.offset(of: reading(x: 0.7, y: 0.35), from: face)
+        let offset = UserHand.offset(of: reading(x: across(1), y: 0.35), from: face, aspectRatio: aspect)
 
         #expect(abs(offset.x - 1) < 1e-9)
         #expect(abs(offset.y + 1) < 1e-9)
@@ -65,15 +82,25 @@ struct UserHandTests {
 
     @Test("The search area surrounds the face and stays in the image")
     func searchArea() {
-        let area = UserHand.searchArea(around: face)
+        let area = UserHand.searchArea(around: face, aspectRatio: aspect)
 
         #expect(area.contains(CGPoint(x: face.midX, y: face.midY)))
+        #expect(area.contains(CGPoint(x: across(2.5), y: face.midY)))
         #expect(area.minX >= 0 && area.maxX <= 1 && area.minY >= 0 && area.maxY <= 1)
 
         let small = CGRect(x: 0.48, y: 0.5, width: 0.04, height: 0.05)
-        let smallArea = UserHand.searchArea(around: small)
-        #expect(smallArea.width < 0.4)
-        #expect(smallArea.contains(CGPoint(x: 0.5 + 0.04 * 3, y: 0.525)))
+        #expect(UserHand.searchArea(around: small, aspectRatio: aspect).width < 0.4)
+    }
+
+    @Test("A held hand is followed from frame to frame, near where it was and about as big")
+    func continuing() {
+        let previous = reading(x: 0.3, y: 0.5)
+        let moved = reading(x: 0.38, y: 0.52)
+        let elsewhere = reading(x: 0.9, y: 0.5)
+        let smaller = reading(x: 0.31, y: 0.5, size: 0.05)
+
+        #expect(UserHand.hand(continuing: previous, among: [elsewhere, moved]) == moved)
+        #expect(UserHand.hand(continuing: previous, among: [elsewhere, smaller]) == nil)
     }
 }
 
@@ -162,7 +189,8 @@ struct HandAimRecorderTests {
             let hand = dx.map {
                 HandReading(
                     features: features(bend: bend),
-                    centre: CGPoint(x: face.midX + $0 * face.width, y: face.midY + dy * face.height),
+                    centre: CGPoint(
+                        x: face.midX + $0 * face.height / (16.0 / 9.0), y: face.midY + dy * face.height),
                     size: 0.15, confidence: 0.9)
             }
             recorder.add(hand: hand, face: hand == nil ? nil : face, at: time)

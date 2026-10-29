@@ -7,7 +7,7 @@ import Foundation
 /// The camera can't see where a hand points, but it sees where the hand is relative to
 /// the face: held towards a display on the left, it's further to one side than when held
 /// towards the laptop below. During calibration the user holds their hand towards each
-/// display in turn. Positions are measured from the face, in face widths and heights, so
+/// display in turn. Positions are measured from the face, in face heights, so
 /// they still hold when the user leans or moves their chair.
 ///
 /// When the hand is held in much the same place for every display, the positions can't

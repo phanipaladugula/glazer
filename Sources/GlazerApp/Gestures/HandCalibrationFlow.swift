@@ -116,7 +116,8 @@ final class HandCalibrationFlow {
 
     private func addAim(_ hand: HandReading?, face: CGRect?, at timestamp: TimeInterval) {
         guard var aiming else { return }
-        let progress = aiming.add(hand: hand, face: face, at: timestamp)
+        let progress = aiming.add(
+            hand: hand, face: face, aspectRatio: model.gaze.currentAspectRatio, at: timestamp)
         self.aiming = aiming
         switch progress {
         case .finished(let aim):
@@ -136,7 +137,8 @@ final class HandCalibrationFlow {
         openness = tester?.openness
         aimedAt = aim.flatMap { aim in
             guard let hand, let face else { return nil }
-            return aim.display(for: UserHand.offset(of: hand, from: face))
+            return aim.display(
+                for: UserHand.offset(of: hand, from: face, aspectRatio: model.gaze.currentAspectRatio))
         }
         switch event {
         case .grabbed:

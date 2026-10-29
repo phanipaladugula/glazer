@@ -132,7 +132,7 @@ struct GrabDetectorTests {
     func handGone() {
         var run = Run()
         run.grab()
-        run.show(nil, for: 5)
+        run.show(nil, for: 7)
 
         #expect(run.events.last == .cancelled)
     }

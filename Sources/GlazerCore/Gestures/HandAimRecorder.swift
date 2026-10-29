@@ -66,7 +66,9 @@ public struct HandAimRecorder: Sendable {
     /// Adds the user's hand and face seen at `timestamp`, either `nil` when not found, and
     /// returns the progress.
     @discardableResult
-    public mutating func add(hand: HandReading?, face: CGRect?, at timestamp: TimeInterval) -> Progress {
+    public mutating func add(
+        hand: HandReading?, face: CGRect?, aspectRatio: Double = 16.0 / 9.0, at timestamp: TimeInterval
+    ) -> Progress {
         guard step < displays.count else { return progress }
         let display = displays[step]
 
@@ -83,7 +85,7 @@ public struct HandAimRecorder: Sendable {
 
         let recordingSince = self.recordingSince ?? timestamp
         self.recordingSince = recordingSince
-        current.append(UserHand.offset(of: hand, from: face))
+        current.append(UserHand.offset(of: hand, from: face, aspectRatio: aspectRatio))
 
         let elapsed = timestamp - recordingSince
         guard elapsed >= configuration.recordDuration, current.count >= HandAim.minimumReadings else {
