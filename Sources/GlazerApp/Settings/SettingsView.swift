@@ -161,8 +161,11 @@ private struct FaceLockSettings: View {
                         .foregroundStyle(model.isFaceLockOn ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                         .frame(width: 44)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(model.isFaceLockOn ? "Face lock is on" : "Face lock is off")
-                            .font(.headline)
+                        HStack(spacing: 6) {
+                            Text(model.isFaceLockOn ? "Face lock is on" : "Face lock is off")
+                                .font(.headline)
+                            ExperimentalBadge()
+                        }
                         Text(
                             model.isFaceLockOn
                                 ? "Glazer follows only you, even with other people in view."
@@ -203,8 +206,9 @@ private struct FaceLockSettings: View {
 
             Section {
                 Text(
-                    "Face lock tells you apart from other people in view of the camera. It isn't a security "
-                        + "feature like Touch ID: someone who looks very like you may be recognised as you."
+                    "Face lock is experimental. It uses a general image comparison built into macOS, "
+                        + "because Apple doesn't offer face recognition to apps. It tells you apart from most "
+                        + "people, but not reliably from everyone, and it isn't a security feature like Touch ID."
                 )
                 .font(.callout)
                 .foregroundStyle(.secondary)

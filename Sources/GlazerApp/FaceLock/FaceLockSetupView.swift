@@ -19,6 +19,9 @@ struct FaceLockSetupView: View {
                 .padding(.top, 36)
 
             VStack(spacing: 8) {
+                if flow.step == .intro {
+                    ExperimentalBadge()
+                }
                 Text(title)
                     .font(.title2.weight(.semibold))
                 Text(message)
