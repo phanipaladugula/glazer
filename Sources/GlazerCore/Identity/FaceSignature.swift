@@ -38,12 +38,24 @@ public struct FaceTemplate: Equatable, Sendable, Codable {
     /// stale instead of silently failing to match.
     public static let currentVersion = 1
 
+    /// The range a learned ``threshold`` is kept within.
+    public static let thresholdRange: ClosedRange<Double> = 0.5...0.97
+
     public let version: Int
     public let signatures: [FaceSignature]
 
-    public init(signatures: [FaceSignature], version: Int = FaceTemplate.currentVersion) {
+    /// The similarity a face must reach to count as the user, learned from enrolment.
+    ///
+    /// For each enrolled signature, enrolment finds its closest match among the others:
+    /// how similar the user looks to themselves across angles. The threshold sits just
+    /// below the weakest of those, so the user is always accepted at any angle they
+    /// enrolled at, and anyone who looks less like the user than that is rejected.
+    public let threshold: Double
+
+    public init(signatures: [FaceSignature], version: Int = FaceTemplate.currentVersion, margin: Double = 0.04) {
         self.version = version
         self.signatures = signatures
+        threshold = Self.learnThreshold(from: signatures, margin: margin)
     }
 
     public var isCurrent: Bool {
@@ -54,6 +66,17 @@ public struct FaceTemplate: Equatable, Sendable, Codable {
     public func bestSimilarity(to signature: FaceSignature) -> Double {
         signatures.map { $0.similarity(to: signature) }.max() ?? 0
     }
+
+    private static func learnThreshold(from signatures: [FaceSignature], margin: Double) -> Double {
+        let selfSimilarities = signatures.indices.compactMap { index -> Double? in
+            signatures.indices
+                .filter { $0 != index }
+                .map { signatures[index].similarity(to: signatures[$0]) }
+                .max()
+        }
+        let weakest = selfSimilarities.min() ?? thresholdRange.upperBound
+        return min(max(weakest - margin, thresholdRange.lowerBound), thresholdRange.upperBound)
+    }
 }
 
 /// Decides whether a face belongs to the enrolled user.
@@ -63,12 +86,18 @@ public struct IdentityVerifier: Sendable {
     /// The similarity a face must reach to count as the user.
     public let threshold: Double
 
-    public init(template: FaceTemplate, threshold: Double = 0.82) {
+    /// - Parameter threshold: Overrides the template's learned threshold.
+    public init(template: FaceTemplate, threshold: Double? = nil) {
         self.template = template
-        self.threshold = threshold
+        self.threshold = threshold ?? template.threshold
+    }
+
+    /// How closely `signature` matches the user, from −1 to 1.
+    public func score(_ signature: FaceSignature) -> Double {
+        template.bestSimilarity(to: signature)
     }
 
     public func matches(_ signature: FaceSignature) -> Bool {
-        template.bestSimilarity(to: signature) >= threshold
+        score(signature) >= threshold
     }
 }
