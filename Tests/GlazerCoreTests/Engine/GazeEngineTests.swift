@@ -112,3 +112,42 @@ struct GazeEngineFacingTests {
         #expect(turned.focusedDisplay == macBookID)
     }
 }
+
+@Suite("GazeEngine, passthroughs")
+struct GazeEnginePassthroughTests {
+    @Test("Signatures are needed only with face lock")
+    func signatures() {
+        let verifier = IdentityVerifier(template: FaceTemplate(signatures: [People.alice]))
+        #expect(!GazeEngine(calibration: twoDisplayCalibration).needsSignatures(at: 0))
+        #expect(GazeEngine(calibration: twoDisplayCalibration, verifier: verifier).needsSignatures(at: 0))
+    }
+
+    @Test("A manual move holds focus until the head turns")
+    func userFocused() {
+        var engine = GazeEngine(calibration: twoDisplayCalibration)
+        engine.setFocusedDisplay(macBookID)
+        _ = engine.process(frame(at: 0, face(yaw: -4, pitch: -8)))
+
+        engine.userFocused(monitorID)
+        let later = (1...20).map { step in
+            engine.process(frame(at: 0.1 * Double(step), face(yaw: -4, pitch: -8)))
+        }
+        #expect(later.last?.focusedDisplay == monitorID)
+        #expect(later.allSatisfy { $0.switchedTo == nil })
+    }
+
+    @Test("A brief dropout keeps the last status")
+    func holdingKeepsStatus() {
+        var engine = GazeEngine(calibration: twoDisplayCalibration)
+        _ = engine.process(frame(at: 0, face()))
+        #expect(engine.process(frame(at: 0.2)).status == .following)
+    }
+
+    @Test("Looking far from every display faces none of them")
+    func facingNone() {
+        var engine = GazeEngine(calibration: twoDisplayCalibration)
+        let output = engine.process(frame(at: 0, face(yaw: -60, pitch: -8)))
+        #expect(output.status == .following)
+        #expect(output.facingDisplay == nil)
+    }
+}
