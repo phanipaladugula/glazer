@@ -3,9 +3,10 @@ import SwiftUI
 
 /// The full-screen overlay shown on one display during calibration.
 ///
-/// The display being calibrated shows a target and a progress ring. The others dim and
-/// point towards it. When calibration ends, the display with the menu bar shows the
-/// result.
+/// The display being calibrated shows a dot, at its centre and then at each corner, that
+/// the user looks at and clicks; a ring around it fills while it records. The other
+/// displays dim and point towards it. When calibration ends, the display with the menu bar
+/// shows the result.
 struct CalibrationOverlay: View {
     let session: CalibrationSession
     let display: Display
@@ -16,6 +17,14 @@ struct CalibrationOverlay: View {
     var body: some View {
         ZStack {
             backdrop
+            if isCurrent, let target = session.currentTarget {
+                DotField(
+                    spot: target.spot, progress: session.progress, isArmed: session.isArmed,
+                    onClick: session.confirm
+                )
+                .id(target)
+                .transition(.opacity)
+            }
             content
                 .frame(maxWidth: 520)
                 .padding(40)
@@ -38,12 +47,14 @@ struct CalibrationOverlay: View {
     @ViewBuilder
     private var content: some View {
         switch session.phase {
-        case .recording(let index):
-            if isCurrent {
+        case .recording:
+            if isCurrent, let target = session.currentTarget, let dot = session.dotStep {
                 RecordingPrompt(
-                    step: index + 1,
-                    stepCount: session.displays.count,
-                    progress: session.progress,
+                    displayStep: session.displayStep ?? 1,
+                    displayCount: session.displays.count,
+                    dot: dot,
+                    spot: target.spot,
+                    isArmed: session.isArmed,
                     hint: session.hint,
                     onCancel: onCancel
                 )
@@ -72,7 +83,7 @@ struct CalibrationOverlay: View {
                     tint: .yellow,
                     title: "Your displays look the same from here",
                     message: "Glazer couldn't tell them apart, because your head pointed the same way "
-                        + "for each. Turn your head towards each display, not just your eyes.",
+                        + "for each. Turn your head towards each dot, not just your eyes.",
                     primary: ("Try Again", onRetry),
                     secondary: ("Cancel", onCancel)
                 )
@@ -95,76 +106,152 @@ struct CalibrationOverlay: View {
     }
 }
 
+/// The words in the middle of the display being calibrated. They leave room in the middle
+/// for the centre dot; for a corner dot, an arrow there points to it.
 private struct RecordingPrompt: View {
-    let step: Int
-    let stepCount: Int
-    let progress: Double
+    let displayStep: Int
+    let displayCount: Int
+    let dot: (number: Int, count: Int)
+    let spot: Calibration.Spot
+    let isArmed: Bool
     let hint: CalibrationSession.Hint
     let onCancel: () -> Void
 
+    /// The space between the slot in the middle and the words above and below it.
+    private let gap = 28.0
+
     var body: some View {
-        VStack(spacing: 28) {
-            VStack(spacing: 10) {
-                Text("Display \(step) of \(stepCount)")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                    .tracking(1.2)
-                Text("Look at this display")
-                    .font(.system(size: 34, weight: .semibold))
-                Text("Turn your head to face the dot, then hold still for a moment.")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+        // The slot sits at the exact middle of the display, where the centre dot is drawn;
+        // the words hang above and below it, so they never cover the dot.
+        ZStack {
+            if let arrow = spot.arrowSymbol {
+                Image(systemName: arrow)
+                    .font(.system(size: 40, weight: .light))
+                    .foregroundStyle(.white.opacity(0.35))
+                    .transition(.opacity)
             }
+        }
+        .frame(width: DotField.diameter, height: DotField.diameter)
+        .overlay(alignment: .top) {
+            instructions
+                .frame(width: 520)
+                .alignmentGuide(.top) { $0[.bottom] + gap }
+        }
+        .overlay(alignment: .bottom) {
+            VStack(spacing: 28) {
+                HintLabel(hint: hint)
+                    .frame(height: 22)
+                Button("Cancel", action: onCancel)
+                    .buttonStyle(.plain)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .help("Esc")
+            }
+            .frame(width: 520)
+            .alignmentGuide(.bottom) { $0[.top] - gap }
+        }
+    }
 
-            Target(progress: progress)
-                .padding(.vertical, 12)
-
-            HintLabel(hint: hint)
-                .frame(height: 22)
-
-            Button("Cancel", action: onCancel)
-                .buttonStyle(.plain)
-                .font(.callout)
+    private var instructions: some View {
+        VStack(spacing: 10) {
+            Text("Display \(displayStep) of \(displayCount) · Dot \(dot.number) of \(dot.count)")
+                .font(.subheadline.weight(.medium).monospacedDigit())
                 .foregroundStyle(.secondary)
-                .help("Esc")
+                .textCase(.uppercase)
+                .tracking(1.2)
+                .contentTransition(.numericText())
+            Text(isArmed ? "Keep looking at the dot" : "Look at the dot and click it")
+                .font(.system(size: 34, weight: .semibold))
+                .contentTransition(.opacity)
+            Text("Turn your head to face it, not just your eyes. Press Space if you'd rather not click.")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
 
-/// A dot inside a ring that fills as calibration records.
-private struct Target: View {
+extension Calibration.Spot {
+    /// An arrow from the middle of the display towards the spot.
+    fileprivate var arrowSymbol: String? {
+        switch self {
+        case .centre: nil
+        case .topLeft: "arrow.up.left"
+        case .topRight: "arrow.up.right"
+        case .bottomRight: "arrow.down.right"
+        case .bottomLeft: "arrow.down.left"
+        }
+    }
+}
+
+/// Places the dot at its spot on the display, inset from the edges so it's clear of the
+/// menu bar, the notch and the Dock.
+private struct DotField: View {
+    static let diameter = 96.0
+    private static let inset = 84.0
+
+    let spot: Calibration.Spot
     let progress: Double
-    @State private var pulse = false
+    let isArmed: Bool
+    let onClick: () -> Void
 
     var body: some View {
-        ZStack {
-            Circle()
-                .stroke(.white.opacity(0.14), lineWidth: 6)
-            Circle()
-                .trim(from: 0, to: progress)
-                .stroke(.tint, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .animation(.linear(duration: 0.15), value: progress)
-            Circle()
-                .fill(.white.opacity(0.18))
-                .frame(width: 44, height: 44)
-                .scaleEffect(pulse ? 1.25 : 0.85)
-                .opacity(pulse ? 0 : 1)
-            Circle()
-                .fill(.white)
-                .frame(width: 14, height: 14)
-                .shadow(color: .white.opacity(0.6), radius: 8)
+        GeometryReader { geometry in
+            let position = spot.position
+            let x = Self.inset + (geometry.size.width - 2 * Self.inset) * position.x
+            let y = Self.inset + (geometry.size.height - 2 * Self.inset) * position.y
+            Target(progress: progress, isArmed: isArmed, onClick: onClick)
+                .position(x: x, y: y)
         }
-        .frame(width: 132, height: 132)
+        .ignoresSafeArea()
+    }
+}
+
+/// A dot to click, inside a ring that fills while it records.
+private struct Target: View {
+    let progress: Double
+    let isArmed: Bool
+    let onClick: () -> Void
+    @State private var pulse = false
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onClick) {
+            ZStack {
+                Circle()
+                    .stroke(.white.opacity(isHovered || isArmed ? 0.3 : 0.14), lineWidth: 5)
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(.tint, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.linear(duration: 0.15), value: progress)
+                if !isArmed {
+                    Circle()
+                        .fill(.white.opacity(0.18))
+                        .frame(width: 40, height: 40)
+                        .scaleEffect(pulse ? 1.3 : 0.85)
+                        .opacity(pulse ? 0 : 1)
+                }
+                Circle()
+                    .fill(isArmed ? AnyShapeStyle(.tint) : AnyShapeStyle(.white))
+                    .frame(width: 14, height: 14)
+                    .shadow(color: .white.opacity(0.6), radius: 8)
+            }
+            .frame(width: DotField.diameter, height: DotField.diameter)
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .onHover { isHovered = $0 }
+        .animation(.smooth(duration: 0.2), value: isArmed)
         .onAppear {
             withAnimation(.easeOut(duration: 1.4).repeatForever(autoreverses: false)) {
                 pulse = true
             }
         }
-        .accessibilityElement()
-        .accessibilityLabel("Calibration target")
+        .accessibilityLabel("Calibration dot")
+        .accessibilityHint("Look at the dot, then click it.")
         .accessibilityValue("\(Int(progress * 100)) percent")
     }
 }
