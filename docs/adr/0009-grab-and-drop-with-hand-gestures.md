@@ -76,10 +76,13 @@ the worst failure, so the design leans towards missing a gesture over inventing 
 - **Drop:** if the pointer is on the drop display and Accessibility says the element under
   it takes typing (a text field or area, or web content with an editable ancestor, never
   a password field), Glazer brings that window forward, clicks at the pointer and
-  presses ⌘V, with V found in the current keyboard layout. Otherwise it opens the
-  screenshot in the default app for PNGs and moves that window, shrunk to fit if needed,
-  to the middle of the drop display. It finds the window by the document it reports, or
-  the app's focused window, never by title.
+  presses ⌘V, with V found in the current keyboard layout. Otherwise it shows the
+  screenshot in a window of Glazer's own, in the middle of the drop display, with
+  buttons to show it in Finder or open it in Preview. An earlier version opened it in
+  Preview and moved Preview's window, which failed in use: Preview reopens a window where
+  it last had one, which can be another display or one no longer connected, and the
+  window has to be found through Accessibility before it can be moved. A window of
+  Glazer's own goes exactly where it's put.
 - **Off by default**, and only with the camera: gestures need Screen Recording, a
   permission Glazer otherwise never asks for.
 
@@ -89,9 +92,12 @@ the worst failure, so the design leans towards missing a gesture over inventing 
   well as faces.
 - The clipboard holds the screenshot after a grab, as with macOS's own screenshot
   shortcuts. A drop copies it again first, in case something else was copied meanwhile.
-- Chromium and Electron apps are asked to build their accessibility tree
-  (`AXManualAccessibility`), once each, so their text boxes can be found. They then do a
-  little more work while they run, as they do for any assistive app.
+- Chromium and Electron apps are asked to describe their content to Accessibility, once
+  each, so their text boxes can be found: Electron apps through `AXManualAccessibility`,
+  Chromium browsers (Chrome, Edge, Brave, Arc and others, by bundle ID) through
+  `AXEnhancedUserInterface`. They then do a little more work while they run, as they do
+  for any assistive app. The enhanced interface is turned on only in those browsers,
+  because in other apps it can slow window animations.
 - Clicking to paste puts the caret where the pointer is, which is what the user pointed
   at. An app that ignores a first click in a background window gets it brought forward
   first.

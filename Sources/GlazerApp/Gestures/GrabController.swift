@@ -4,7 +4,7 @@ import GlazerSystem
 import OSLog
 
 /// Turns hand gestures into screenshots: a grab takes one of the display the user faces,
-/// and the drop pastes it where the pointer is, or opens it on the display they face then.
+/// and the drop pastes it where the pointer is, or shows it on the display they face then.
 ///
 /// A grab saves the screenshot where macOS saves its own and copies it to the clipboard,
 /// as ⌃⇧⌘3 does, so it's kept even if the drop never comes.
@@ -17,6 +17,7 @@ final class GrabController {
     }
 
     private let overlay = GrabOverlay()
+    private let windows = ScreenshotWindows()
     /// Told when a screenshot was taken, which proves Screen Recording is allowed.
     var onCaptured: (() -> Void)?
     /// Told when macOS refused the screenshot because Screen Recording isn't allowed.
@@ -66,7 +67,7 @@ final class GrabController {
                 if held != nil, let frame = frame(of: facing ?? display) {
                     overlay.showThumbnail(image, on: frame)
                 }
-                Logger.gestures.info("Grabbed display \(display, privacy: .public)")
+                Logger.gestures.notice("Grabbed display \(display, privacy: .public)")
                 return Screenshot(url: url, image: image, png: png)
             } catch {
                 Logger.gestures.error("Grab failed: \(String(describing: error), privacy: .public)")
@@ -94,22 +95,31 @@ final class GrabController {
         overlay.hideThumbnail()
         Task {
             guard let screenshot = await held.value else { return }
+            // Something else may have been copied since the grab.
+            ScreenshotStore.copy(screenshot.image, png: screenshot.png)
+
             let pointer = CGEvent(source: nil)?.location ?? .zero
             let pointerDisplay = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }?
                 .displayID
-            if pointerDisplay == display, await PasteTarget.acceptsPaste(at: pointer) {
-                // Something else may have been copied since the grab.
-                ScreenshotStore.copy(screenshot.image, png: screenshot.png)
+            if pointerDisplay == display, let target = await PasteTarget.find(at: pointer) {
                 await PasteTarget.paste(at: pointer)
-                Logger.gestures.info("Pasted on display \(display, privacy: .public)")
-            } else {
-                await DocumentOpener.open(screenshot.url, on: display)
-                Logger.gestures.info("Opened on display \(display, privacy: .public)")
+                Logger.gestures.notice(
+                    "Pasted into \(target, privacy: .public) on display \(display, privacy: .public)")
+                return
+            }
+            let pointerName = pointerDisplay.map { String($0) } ?? "none"
+            Logger.gestures.notice(
+                "Showing on display \(display, privacy: .public); pointer on \(pointerName, privacy: .public)")
+            if let screen = screen(of: display) ?? NSScreen.main {
+                windows.show(screenshot.image, file: screenshot.url, on: screen)
             }
         }
     }
 
     private func cancel() {
+        if held != nil {
+            Logger.gestures.notice("Grab cancelled: held too long, or the hand went out of view")
+        }
         held = nil
         overlay.hideThumbnail()
     }

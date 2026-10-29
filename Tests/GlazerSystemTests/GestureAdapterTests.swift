@@ -39,25 +39,3 @@ struct ScreenshotStoreTests {
         #expect(isDirectory.boolValue)
     }
 }
-
-@Suite("Document opener")
-struct DocumentOpenerTests {
-    private let area = CGRect(x: 1000, y: 25, width: 2000, height: 1000)
-
-    @Test("A window that fits keeps its size and is centred")
-    func fits() {
-        let placed = DocumentOpener.placement(of: CGSize(width: 800, height: 600), in: area)
-
-        #expect(placed == CGRect(x: 1600, y: 225, width: 800, height: 600))
-    }
-
-    @Test("A window too big shrinks to 90%, keeping its shape")
-    func shrinks() {
-        let placed = DocumentOpener.placement(of: CGSize(width: 4000, height: 1000), in: area)
-
-        #expect(placed.width == 1800)
-        #expect(placed.height == 450)
-        #expect(abs(placed.midX - area.midX) <= 1)
-        #expect(abs(placed.midY - area.midY) <= 1)
-    }
-}

@@ -67,9 +67,8 @@ Hand gestures are off unless you turn them on in **Settings › Gestures**. With
   and presses ⌘V. Password fields are never pasted into. Chrome, Slack, VS Code and other
   apps built on Chromium describe their content only once an assistive app asks, so
   Glazer asks them, once each.
-- **Otherwise the screenshot opens** in your usual app for images, and Glazer moves its
-  window to the display you face. It recognises the window by the file it reports, not by
-  its title.
+- **Otherwise the screenshot is shown** in a window of Glazer's own on the display you
+  face. Nothing is read from other apps' windows to do this.
 
 Your screenshots are yours: Glazer doesn't keep a list of them or delete them.
 

@@ -11,20 +11,34 @@ import OSLog
 public enum PasteTarget {
     private static let textRoles: Set<String> = [kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole]
 
-    /// Apps that build their accessibility tree only once asked, already asked.
+    /// Apps already asked to describe their content.
     private static var askedProcesses: Set<pid_t> = []
 
-    /// Whether the element under `point`, in Core Graphics global coordinates, takes
-    /// typing, so a paste there lands in it. Password fields never count.
-    public static func acceptsPaste(at point: CGPoint) async -> Bool {
-        guard AccessibilityAccess.isGranted, var element = element(at: point) else { return false }
-        if askForAccessibilityTree(of: element) {
-            // Chromium and Electron apps, such as Chrome, Slack and VS Code, describe web
-            // content only once an assistive app asks. Give them a moment, then look again.
-            try? await Task.sleep(for: .milliseconds(300))
-            element = self.element(at: point) ?? element
+    /// Chromium-based browsers, which describe web pages to Accessibility only once an
+    /// assistive app turns on their enhanced interface.
+    private static let chromiumBrowsers = [
+        "com.google.Chrome", "com.microsoft.edgemac", "com.brave.Browser", "company.thebrowser.Browser",
+        "com.vivaldi.Vivaldi", "com.operasoftware.Opera", "org.chromium.Chromium", "com.openai.atlas",
+    ]
+
+    /// What's under `point`, in Core Graphics global coordinates, if it takes typing, so a
+    /// paste there lands in it: a short description such as "AXTextArea in Notes", or
+    /// `nil`. Password fields never count.
+    public static func find(at point: CGPoint) async -> String? {
+        guard AccessibilityAccess.isGranted, let element = element(at: point) else { return nil }
+        if let found = editable(element) {
+            return describe(found)
         }
-        return isEditable(element)
+        guard askToDescribeContent(of: element) else { return nil }
+        // Chromium and Electron apps, such as Chrome, Slack and VS Code, take a moment to
+        // build the description of their content once asked. Look again a few times.
+        for _ in 0..<6 {
+            try? await Task.sleep(for: .milliseconds(150))
+            if let element = self.element(at: point), let found = editable(element) {
+                return describe(found)
+            }
+        }
+        return nil
     }
 
     /// Pastes the clipboard at `point`: brings its window forward, clicks there so the
@@ -48,35 +62,47 @@ public enum PasteTarget {
         return result == .success ? element : nil
     }
 
-    /// Asks the app that owns `element` to build its full accessibility tree, once per
-    /// app. Returns whether it was asked now.
-    private static func askForAccessibilityTree(of element: AXUIElement) -> Bool {
+    /// Asks the app that owns `element` to describe its content to Accessibility, once
+    /// per app. Returns whether it was asked now.
+    private static func askToDescribeContent(of element: AXUIElement) -> Bool {
         guard let processID = element.processID, !askedProcesses.contains(processID) else { return false }
         askedProcesses.insert(processID)
         let application = AXUIElementCreateApplication(processID)
-        let result = AXUIElementSetAttributeValue(application, "AXManualAccessibility" as CFString, kCFBooleanTrue)
-        return result == .success
+        // Electron apps.
+        AXUIElementSetAttributeValue(application, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        // Chromium browsers. Only them: in other apps it can slow window animations.
+        let bundleID = NSRunningApplication(processIdentifier: processID)?.bundleIdentifier ?? ""
+        if chromiumBrowsers.contains(where: bundleID.hasPrefix) {
+            AXUIElementSetAttributeValue(application, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
+        }
+        return true
     }
 
-    /// Whether `element`, or the control it's part of, takes typing.
-    static func isEditable(_ element: AXUIElement) -> Bool {
+    /// `element`, or the control it's part of, if it takes typing.
+    static func editable(_ element: AXUIElement) -> AXUIElement? {
         var current: AXUIElement? = element
         // A few levels up is enough: the pointer is usually over a field's text, a line of
         // it, or a placeholder inside it.
         for _ in 0..<6 {
-            guard let candidate = current else { return false }
-            if candidate.string(kAXSubroleAttribute) == kAXSecureTextFieldSubrole { return false }
+            guard let candidate = current else { return nil }
+            if candidate.string(kAXSubroleAttribute) == kAXSecureTextFieldSubrole { return nil }
             let role = candidate.string(kAXRoleAttribute)
             if let role, textRoles.contains(role) {
-                return (candidate.value(of: kAXEnabledAttribute) as? Bool) != false
+                return (candidate.value(of: kAXEnabledAttribute) as? Bool) != false ? candidate : nil
             }
             // Web content: Safari and Chromium mark everything inside an editable area,
             // such as a contenteditable message box, with its editable ancestor.
-            if candidate.value(of: "AXEditableAncestor") != nil { return true }
-            if role == kAXWindowRole || role == "AXWebArea" || role == kAXApplicationRole { return false }
+            if let ancestor = candidate.element("AXEditableAncestor") { return ancestor }
+            if role == kAXWindowRole || role == "AXWebArea" || role == kAXApplicationRole { return nil }
             current = candidate.element(kAXParentAttribute)
         }
-        return false
+        return nil
+    }
+
+    private static func describe(_ element: AXUIElement) -> String {
+        let role = element.string(kAXRoleAttribute) ?? "element"
+        let app = element.processID.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "an app"
+        return "\(role) in \(app)"
     }
 
     // MARK: Pasting

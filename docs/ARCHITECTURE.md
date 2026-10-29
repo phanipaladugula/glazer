@@ -78,7 +78,7 @@ doesn't pull it straight back.
 | `Switching/` | `SwitchingMethod` |
 | `Identity/` | `FaceSignature`, `FaceTemplate` (with its learned threshold), `IdentityVerifier`, `FaceEnrollment` |
 | `Engine/` | `GazeEngine`, which ties the pipeline together, and `TypingGuard`, which holds switches back while the user types |
-| `Display/` | `Display`, `DisplayLayout`, lookup by point, reading order |
+| `Display/` | `Display`, `DisplayLayout`, lookup by point, reading order, `Placement` (centre a window on a display) |
 | `Settings/` | `Preferences`: on/off, setup state, switching method and key, switch delay, calibration |
 | `Models/` | `KeyboardShortcut`, with the rules for a switch shortcut |
 | `Gestures/` | `HandJoints` and `HandFeatures` (how open a hand is, scale-free), `HandCalibration` and its recorder, `UserHand` (which hand is the user's, and where to look for it), `HandAim` and its recorder (which display the hand is held towards), `GrabDetector` (grab and drop), `DisplayHistory` |
@@ -91,7 +91,7 @@ doesn't pull it straight back.
 | `Capture/` | `ScreenCapture` (one display, with ScreenCaptureKit), `ScreenCaptureAccess`, `ScreenshotStore` (saves and copies) |
 | `Vision/` | `FrameAnalyzer` |
 | `Security/` | `FaceVault` (Keychain), `OwnerAuthentication` (Touch ID or password) |
-| `Focus/` | `FocusController`, `TypingMonitor`, `AccessibilityAccess`, `PasteTarget` (is the pointer on a text field, and paste there), `DocumentOpener` (open a file with its window on a chosen display) |
+| `Focus/` | `FocusController`, `TypingMonitor`, `AccessibilityAccess`, `PasteTarget` (is the pointer on a text field, and paste there) |
 | `Display/` | `DisplayMonitor` |
 | `HotKey/` | `HotKey`, a global shortcut through Carbon that can refuse one macOS or another app uses; `KeyCodes` |
 | `Login/` | `LaunchAtLogin` |
@@ -105,7 +105,7 @@ doesn't pull it straight back.
 | `Gaze/` | `GazeController`: runs the camera and the engine, and moves focus |
 | `Calibration/` | Full-screen overlays with the dots to click, and the calibration session |
 | `FaceLock/` | Face lock setup, with a live camera preview |
-| `Gestures/` | `GrabController` (screenshot on a grab; paste or open on the drop), `GrabOverlay` (flash and held thumbnail), hand calibration window |
+| `Gestures/` | `GrabController` (screenshot on a grab; paste or open on the drop), `GrabOverlay` (flash, held thumbnail and messages), `ScreenshotWindows` (a dropped screenshot on its display), hand calibration window |
 | `Setup/` | The first-run setup window |
 | `Settings/` | General, Displays, Face Lock, Gestures, Privacy and Diagnostics tabs |
 | `Views/` | Menu bar icon, panel, display map, and `ConditionPresentation` (every state's copy and icon) |

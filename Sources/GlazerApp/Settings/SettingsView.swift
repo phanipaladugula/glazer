@@ -370,7 +370,7 @@ private struct GestureSettings: View {
                 Fact(
                     symbol: "doc.on.clipboard",
                     text: "Open your hand. If the pointer is on a text box or message field, Glazer pastes "
-                        + "the screenshot there. Otherwise it opens the screenshot on that display.")
+                        + "the screenshot there. Otherwise it shows the screenshot on that display.")
             }
         }
         .formStyle(.grouped)
