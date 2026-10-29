@@ -45,6 +45,10 @@ Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) first. In short:
 - Large changes start as an issue, so the approach can be agreed before the code is
   written.
 
+## Releases
+
+Maintainers release by pushing a version tag. See [docs/RELEASING.md](docs/RELEASING.md).
+
 ## Design decisions
 
 Significant decisions are recorded in [docs/adr](docs/adr). If your change reverses or
