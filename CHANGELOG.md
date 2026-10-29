@@ -6,6 +6,15 @@ All notable changes to Glazer are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `swift run glazer-camera-check`, which shows your head's yaw live using Glazer's own
+  camera code.
+- Glazer never switches displays while you're typing. Keep typing while you look at
+  notes or talk to someone, and your words stay where they are. Stop typing for a second
+  while facing another display, and focus moves there, ready for you. Glazer only notes
+  when a key is pressed, never which key.
+
 ### Changed
 
 - The install script is much faster on networks that can't reach every GitHub download
@@ -15,20 +24,6 @@ All notable changes to Glazer are recorded here. The format follows
   progress output. Logs, CI and small terminals get plain step-by-step output.
 - Clearer install errors: a release that doesn't exist is reported as such, not as a
   connection problem. Ctrl-C cancels cleanly without installing anything.
-
-### Security
-
-- The install script compares the checksum directly, checks the app is signed as Glazer
-  (and, once releases have a signing identity, by Glazer's certificate), requires TLS 1.2,
-  and refuses to run as root. Uninstalling also removes the face lock Keychain item.
-
-### Added
-
-- `swift run glazer-camera-check`, which shows your head's yaw live using Glazer's own
-  camera code.
-
-### Changed
-
 - Face lock is marked experimental. Its signatures now use the exact face box, its match
   threshold is learned across head angles, and it drops the user only after three failed
   checks in a row. Face lock needs setting up again.
@@ -37,6 +32,9 @@ All notable changes to Glazer are recorded here. The format follows
 
 ### Security
 
+- The install script compares the checksum directly, checks the app is signed as Glazer
+  (and, once releases have a signing identity, by Glazer's certificate), requires TLS 1.2,
+  and refuses to run as root. Uninstalling also removes the face lock Keychain item.
 - Face lock no longer silently turns off when its Keychain item can't be read (such as
   after choosing Deny); Glazer pauses and offers Try Again rather than following anyone.
 - Focus never moves while a password is being typed in the frontmost app.
@@ -60,7 +58,6 @@ All notable changes to Glazer are recorded here. The format follows
 - "Open at login" shows what macOS actually did, and asks for approval when needed.
 - "Camera unavailable" has a Try Again button, face lock's states each say what's
   happening, and setup can calibrate again.
-
 - A display that was disconnected after calibration could still be chosen, warping the
   pointer to a corner.
 - Closing the face lock window while Touch ID was showing could leave the camera running.
@@ -73,13 +70,6 @@ All notable changes to Glazer are recorded here. The format follows
 - The pointer on the top row of pixels no longer counts as off every display.
 - Escape on "Calibration complete" keeps the calibration, and the camera turns off while
   the result is shown.
-
-### Added
-
-- Glazer never switches displays while you're typing. Keep typing while you look at
-  notes or talk to someone, and your words stay where they are. Stop typing for a second
-  while facing another display, and focus moves there, ready for you. Glazer only notes
-  when a key is pressed, never which key.
 
 ## [0.1.1] - 2026-10-29
 
