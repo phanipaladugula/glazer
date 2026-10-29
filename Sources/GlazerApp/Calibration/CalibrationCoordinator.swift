@@ -33,18 +33,43 @@ final class CalibrationCoordinator {
                 session: session,
                 display: display,
                 onCancel: { [weak self] in self?.finish(with: nil) },
-                onRetry: { session.restart() },
+                onRetry: { [weak self] in self?.retry(verifier: verifier) },
                 onDone: { [weak self] calibration in self?.finish(with: calibration) }
             )
             let window = Self.makeWindow(for: screen, content: overlay)
-            window.onCancel = { [weak self] in self?.finish(with: nil) }
+            window.onCancel = { [weak self] in self?.escape() }
             windows.append(window)
         }
         NSApp.activate()
         windows.first { $0.screen == NSScreen.main }?.makeKeyAndOrderFront(nil)
 
-        gaze.calibrate(verifier: verifier) { frame, output in
+        record(verifier: verifier)
+    }
+
+    /// Runs the camera until every display is recorded, then turns it off while the result
+    /// is shown.
+    private func record(verifier: IdentityVerifier?) {
+        gaze.calibrate(verifier: verifier) { [weak self] frame, output in
+            guard let self, let session else { return }
             session.add(output, at: frame.timestamp)
+            switch session.phase {
+            case .finished, .failed: gaze.stop()
+            case .recording: break
+            }
+        }
+    }
+
+    private func retry(verifier: IdentityVerifier?) {
+        session?.restart()
+        record(verifier: verifier)
+    }
+
+    /// Escape cancels while recording, and keeps a finished calibration.
+    private func escape() {
+        if case .finished(let calibration) = session?.phase {
+            finish(with: calibration)
+        } else {
+            finish(with: nil)
         }
     }
 

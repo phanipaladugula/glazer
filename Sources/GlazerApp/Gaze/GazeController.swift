@@ -27,7 +27,7 @@ final class GazeController {
     /// Details of the latest frame, for the diagnostics view.
     private(set) var diagnostics = Diagnostics()
 
-    /// Set when the camera couldn't start.
+    /// Set when the camera couldn't start, or stopped by itself.
     private(set) var cameraFailure: CameraFeed.Failure?
 
     struct Diagnostics: Equatable {
@@ -47,14 +47,33 @@ final class GazeController {
     @ObservationIgnored private var displays: [Display] = []
     @ObservationIgnored private var pointerDisplay: Display.ID?
     @ObservationIgnored private var frameTimes: [TimeInterval] = []
+    /// What following was last started with, so an unchanged request doesn't restart it.
+    @ObservationIgnored private var followed: (displays: [Display], calibration: Calibration, verifier: FaceTemplate?)?
+    /// Bumped on every start and stop, so a camera start that finishes late can tell it's
+    /// been superseded.
+    @ObservationIgnored private var generation = 0
 
     // MARK: Modes
 
     /// Follows the user and moves focus between `displays`.
+    ///
+    /// Calling it again with the same displays, calibration and face lock only updates the
+    /// switch delay, so the user stays followed.
     func follow(displays: [Display], calibration: Calibration, verifier: IdentityVerifier?, switchDelay: Double) {
+        if mode == .following, let followed, followed.displays == displays,
+            followed.calibration == calibration, followed.verifier == verifier?.template
+        {
+            engine?.setDwell(switchDelay)
+            return
+        }
+        followed = (displays, calibration, verifier?.template)
+
         var classification = DisplayClassifier.Configuration()
         classification.dwell = switchDelay
-        var engine = GazeEngine(calibration: calibration, verifier: verifier, classification: classification)
+        // Only connected displays can be chosen: a disconnected display's calibration
+        // point would otherwise send focus nowhere.
+        var engine = GazeEngine(
+            calibration: calibration.restricted(to: displays), verifier: verifier, classification: classification)
 
         self.displays = displays
         pointerDisplay = Self.displayUnderPointer(in: displays)
@@ -78,6 +97,8 @@ final class GazeController {
 
     /// Turns the camera off.
     func stop() {
+        generation += 1
+        followed = nil
         guard mode != .idle else { return }
         camera.stop()
         typing.stop()
@@ -89,12 +110,14 @@ final class GazeController {
         frameTimes.removeAll()
     }
 
-    /// Updates the displays while following, such as when one is connected.
-    func updateDisplays(_ displays: [Display]) {
-        self.displays = displays
+    /// Forgets a camera failure, so the next start tries the camera again.
+    func clearCameraFailure() {
+        cameraFailure = nil
     }
 
     private func start(_ mode: Mode, engine: GazeEngine?, handler: ((Frame, GazeEngine.Output?) -> Void)?) {
+        generation += 1
+        let generation = generation
         self.mode = mode
         self.engine = engine
         frameHandler = handler
@@ -104,19 +127,27 @@ final class GazeController {
 
         Task {
             do {
-                try await camera.start { [weak self] frame in
-                    Task { @MainActor in self?.handle(frame) }
-                }
-            } catch let failure as CameraFeed.Failure {
-                Logger.app.error("Camera failed to start: \(String(describing: failure))")
-                cameraFailure = failure
-                stop()
+                try await camera.start(
+                    onFrame: { [weak self] frame in
+                        Task { @MainActor in self?.handle(frame) }
+                    },
+                    onStop: { [weak self] failure in
+                        Task { @MainActor in self?.cameraStopped(failure, generation: generation) }
+                    })
+                // A stop or another start may have happened while the camera was starting.
+                if generation != self.generation { camera.stop() }
             } catch {
-                Logger.app.error("Camera failed to start: \(error)")
-                cameraFailure = .cannotOpenCamera
-                stop()
+                let failure = error as? CameraFeed.Failure ?? .cannotOpenCamera
+                Logger.app.error("Camera failed to start: \(String(describing: failure))")
+                cameraStopped(failure, generation: generation)
             }
         }
+    }
+
+    private func cameraStopped(_ failure: CameraFeed.Failure, generation: Int) {
+        guard generation == self.generation else { return }
+        stop()
+        cameraFailure = failure
     }
 
     // MARK: Frames
@@ -162,8 +193,14 @@ final class GazeController {
                 typingGuard.release(at: now)
             }
         guard let target else { return }
-        focus.focus(target, leaving: pointerDisplay)
-        pointerDisplay = target
+        if focus.focus(target, leaving: pointerDisplay) {
+            pointerDisplay = target
+        } else {
+            // Focus couldn't move, such as during a drag. Undo the decision, so the switch
+            // happens normally once the user faces that display again after letting go.
+            engine?.setFocusedDisplay(pointerDisplay)
+            if let pointerDisplay { typingGuard.userFocused(pointerDisplay) }
+        }
     }
 
     private func updateDiagnostics(with frame: Frame) {
@@ -188,6 +225,6 @@ final class GazeController {
     }
 
     private static func displayUnderPointer(in displays: [Display]) -> Display.ID? {
-        displays.display(containing: NSEvent.mouseLocation)?.id
+        displays.display(nearest: NSEvent.mouseLocation)?.id
     }
 }

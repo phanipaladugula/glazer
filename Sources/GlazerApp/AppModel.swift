@@ -83,6 +83,7 @@ final class AppModel {
     @ObservationIgnored private let preferences: Preferences
     @ObservationIgnored private let vault: FaceVault
     @ObservationIgnored private var toggleHotKey: HotKey?
+    @ObservationIgnored private var session: SessionMonitor?
     @ObservationIgnored private lazy var calibrationCoordinator = CalibrationCoordinator(gaze: gaze)
     private var isCalibrating = false
 
@@ -98,6 +99,7 @@ final class AppModel {
         loadFaceTemplate()
         registerToggleShortcut()
         observeDisplays()
+        session = SessionMonitor { [weak self] in self?.refresh() }
         refresh()
     }
 
@@ -229,8 +231,19 @@ final class AppModel {
     }
 
     /// Starts, updates or stops following to match the current state.
+    ///
+    /// It runs after anything that could change the answer: a setting, a permission, the
+    /// displays, the screen locking or waking, a camera being connected. Each run also
+    /// retries a camera that failed before.
     private func refresh() {
         guard !isCalibrating, gaze.mode != .enrolling else { return }
+        gaze.clearCameraFailure()
+
+        // Nobody is at the Mac: the screen is locked or asleep, or another user is in front.
+        if session?.isActive == false {
+            gaze.stop()
+            return
+        }
 
         if isEnabled, attention == nil, let calibration {
             gaze.follow(displays: displays, calibration: calibration, verifier: verifier, switchDelay: switchDelay)
@@ -258,7 +271,6 @@ final class AppModel {
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.gaze.updateDisplays(self.displays)
                 self.refresh()
                 self.observeDisplays()
             }
