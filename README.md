@@ -4,12 +4,10 @@
 work across a MacBook and an external display. Look at the other screen and start typing:
 Glazer moves the pointer and keyboard focus there for you.
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/panel-dark.png">
-    <img src="docs/images/panel-light.png" width="300" alt="The Glazer panel: an on/off switch, a map of the connected displays with the focused one highlighted, and menu items.">
-  </picture>
-</p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/hero-dark.svg">
+  <img src="docs/images/hero-light.svg" alt="Fig 1, head direction picks the display: a sighting turret standing in for the user's head is turned to +27° on an engraved yaw dial, past the hysteresis band at +12°, toward the monitor calibrated at +28°. The monitor's screen is lit and holds the pointer; the MacBook calibrated at −4° stays dark.">
+</picture>
 
 > [!NOTE]
 > Glazer is in early development. The menu bar app works today. Following your gaze is
@@ -48,6 +46,13 @@ This builds `dist/Glazer.app` and opens it. You only need Apple's Command Line T
 (`xcode-select --install`), not Xcode. Copy the app to `/Applications` to keep it.
 
 ## Use
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/panel-dark.png">
+    <img src="docs/images/panel-light.png" width="300" alt="The Glazer panel: an on/off switch, a map of the connected displays with the focused one highlighted, and menu items.">
+  </picture>
+</p>
 
 - **Click the eye** in the menu bar to open the panel.
 - **Turn Glazer on or off** with the switch, or press **⌥⌘G** from any app. When Glazer
