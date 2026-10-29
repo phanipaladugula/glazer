@@ -20,7 +20,7 @@ public final class Preferences {
         static let switchDelay = "switchDelay"
         static let calibration = "calibration"
         static let switchingMethod = "switchingMethod"
-        static let switchKey = "switchKey"
+        static let switchShortcut = "switchShortcut"
     }
 
     /// The range offered for ``switchDelay``, in seconds.
@@ -67,13 +67,23 @@ public final class Preferences {
 
     /// How the user moves between displays. Defaults to following their head.
     public var switchingMethod: SwitchingMethod {
-        get { (store.object(forKey: Key.switchingMethod) as? String).flatMap(SwitchingMethod.init) ?? .camera }
+        get {
+            (store.object(forKey: Key.switchingMethod) as? String).flatMap(SwitchingMethod.init(storedValue:))
+                ?? .camera
+        }
         set { store.set(newValue.rawValue, forKey: Key.switchingMethod) }
     }
 
-    /// The key to double-press to switch displays. Defaults to fn.
-    public var switchKey: SwitchKey {
-        get { (store.object(forKey: Key.switchKey) as? String).flatMap(SwitchKey.init) ?? .function }
-        set { store.set(newValue.rawValue, forKey: Key.switchKey) }
+    /// The shortcut that moves to the next display. Defaults to
+    /// ``KeyboardShortcut/nextDisplay``, and to it again if the stored one can't be used.
+    public var switchShortcut: KeyboardShortcut {
+        get {
+            guard let data = store.object(forKey: Key.switchShortcut) as? Data,
+                let shortcut = try? JSONDecoder().decode(KeyboardShortcut.self, from: data),
+                shortcut.problemAsSwitchShortcut == nil
+            else { return .nextDisplay }
+            return shortcut
+        }
+        set { store.set(try? JSONEncoder().encode(newValue), forKey: Key.switchShortcut) }
     }
 }

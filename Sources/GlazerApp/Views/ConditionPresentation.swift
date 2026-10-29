@@ -11,6 +11,7 @@ struct ConditionPresentation {
         case retryFaceLock
         case retryCamera
         case openAccessibilitySettings
+        case openSettings
     }
 
     /// The panel's status line.
@@ -40,8 +41,8 @@ struct ConditionPresentation {
                 callout: nil)
         case .running(.notRecognized):
             self.init("Face not recognised", symbol: "eye", active: true)
-        case .listening(let key):
-            self.init("Press \(key.shortName) twice to switch", symbol: "keyboard", active: true)
+        case .listening(let shortcut):
+            self.init("Press \(shortcut.displayString) to switch", symbol: "keyboard", active: true)
         case .attention(.setupNeeded):
             self.init(
                 "Not set up yet", symbol: "eye.trianglebadge.exclamationmark", active: false,
@@ -77,6 +78,13 @@ struct ConditionPresentation {
                 callout: (
                     "Glazer needs Accessibility to move your typing to the display you switch to. If Glazer is "
                         + "already listed, switch it off and on again.", "Open Settings…", .openAccessibilitySettings
+                ))
+        case .attention(.shortcutUnavailable):
+            self.init(
+                "Shortcut unavailable", symbol: "exclamationmark.triangle", active: false,
+                callout: (
+                    "macOS or another app already uses your switch shortcut. Choose another in Settings.",
+                    "Open Settings…", .openSettings
                 ))
         case .attention(.calibrationNeeded):
             self.init(

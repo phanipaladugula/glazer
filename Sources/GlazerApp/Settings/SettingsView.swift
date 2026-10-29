@@ -58,16 +58,16 @@ private struct GeneralSettings: View {
                         Text(method.title).tag(method)
                     }
                 }
-                if model.switchingMethod.usesKey {
-                    Picker("Double-press", selection: $model.switchKey) {
-                        ForEach(SwitchKey.allCases, id: \.self) { key in
-                            Text(key.name).tag(key)
-                        }
+                if model.switchingMethod.usesShortcut {
+                    LabeledContent("Next display") {
+                        ShortcutRecorder(model: model)
                     }
                 }
             } footer: {
-                if model.switchingMethod.usesKey, let caveat = model.switchKey.caveat {
-                    Text("\(model.switchingMethod.detail) \(caveat)")
+                if model.switchShortcutError != nil {
+                    Text(
+                        "Choose another shortcut, or turn off the one macOS uses in System Settings › Keyboard › "
+                            + "Keyboard Shortcuts.")
                 } else {
                     Text(model.switchingMethod.detail)
                 }
@@ -176,13 +176,13 @@ private struct DisplaySettings: View {
             } else {
                 Section {
                     LabeledContent("Next display") {
-                        Text("Double-press \(model.switchKey.shortName)")
+                        Text(model.switchShortcut.displayString)
                             .foregroundStyle(.secondary)
                     }
                 } footer: {
                     Text(
-                        "Each double-press moves to the next display, top to bottom, then left to right. "
-                            + "Calibration is only needed when Glazer follows where you look.")
+                        "Each press of the shortcut moves to the next display, top to bottom, then left to "
+                            + "right. Calibration is only needed when Glazer follows where you look.")
                 }
             }
         }
