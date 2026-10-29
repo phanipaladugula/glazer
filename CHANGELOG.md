@@ -6,6 +6,16 @@ All notable changes to Glazer are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The install script is much faster on networks that can't reach every GitHub download
+  server: it moves on from an unreachable server within seconds instead of waiting up to
+  a minute.
+- The install script shows a small robot walking along a progress bar, replacing curl's
+  progress output. Logs, CI and small terminals get plain step-by-step output.
+- Clearer install errors: a release that doesn't exist is reported as such, not as a
+  connection problem. Ctrl-C cancels cleanly without installing anything.
+
 ### Added
 
 - Glazer never switches displays while you're typing. Keep typing while you look at
