@@ -18,7 +18,7 @@ public final class HotKey {
     private static var eventHandler: EventHandlerRef?
 
     private let id: UInt32
-    private var reference: EventHotKeyRef?
+    nonisolated(unsafe) private var reference: EventHotKeyRef?
 
     /// Registers `shortcut` and calls `action` on the main thread each time it is pressed.
     public init(_ shortcut: KeyboardShortcut, action: @escaping () -> Void) throws {
@@ -43,11 +43,15 @@ public final class HotKey {
         Self.handlers[id] = action
     }
 
-    isolated deinit {
+    // Not an isolated deinit: Swift 6.3 crashes compiling those with code coverage on.
+    // Glazer creates and releases hot keys on the main thread, and the reference is only
+    // touched here and in init.
+    deinit {
         if let reference {
             UnregisterEventHotKey(reference)
         }
-        Self.handlers[id] = nil
+        let id = id
+        Task { @MainActor in HotKey.handlers[id] = nil }
     }
 
     private static func installEventHandlerIfNeeded() throws {

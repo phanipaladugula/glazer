@@ -13,7 +13,8 @@ public final class SessionMonitor {
     private var isLocked = false
     private var isAsleep = false
     private var isSwitchedOut = false
-    private var observers: [(NotificationCenter, NSObjectProtocol)] = []
+    // Written only during init, on the main actor; read in deinit.
+    nonisolated(unsafe) private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private let onChange: @MainActor () -> Void
 
     /// - Parameter onChange: Called when ``isActive`` changes, and when a camera is
@@ -50,7 +51,8 @@ public final class SessionMonitor {
         observers.append((center, token))
     }
 
-    isolated deinit {
+    // Not an isolated deinit: Swift 6.3 crashes compiling those with code coverage on.
+    deinit {
         for (center, token) in observers {
             center.removeObserver(token)
         }
