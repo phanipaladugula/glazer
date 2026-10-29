@@ -33,6 +33,13 @@ public struct Calibration: Equatable, Sendable, Codable {
         displays.count >= 2 && displays.allSatisfy { pose(for: $0.id) != nil }
     }
 
+    /// This calibration with only the points for `displays`, so a display that has been
+    /// disconnected can never be chosen.
+    public func restricted(to displays: [Display]) -> Calibration {
+        let connected = Set(displays.map(\.id))
+        return Calibration(points: points.filter { connected.contains($0.displayID) })
+    }
+
     /// The first problem that would make displays hard to tell apart, if any.
     ///
     /// - Parameter minimumSeparation: The smallest distance, in degrees, that two

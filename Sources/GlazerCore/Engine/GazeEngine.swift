@@ -66,6 +66,12 @@ public struct GazeEngine: Sendable {
         classifier?.setFocused(id)
     }
 
+    /// Changes how long the user must face another display before it takes focus, without
+    /// losing who is being followed or where they're looking.
+    public mutating func setDwell(_ dwell: TimeInterval) {
+        classifier?.configuration.dwell = dwell
+    }
+
     public mutating func process(_ frame: Frame) -> Output {
         let lightLevel = lightMeter.update(brightness: frame.brightness)
         let previousFocus = classifier?.focused
