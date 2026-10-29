@@ -1,0 +1,31 @@
+name: Bug report
+description: Something doesn't work as described.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Glazer version
+      description: From About Glazer in the menu bar panel.
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: macOS 26.1
+    validations:
+      required: true
+  - type: textarea
+    id: displays
+    attributes:
+      label: Displays and camera
+      description: Which displays, how they are arranged, and which camera Glazer uses.
+      placeholder: MacBook Pro 14" on the left, LG UltraFine 27" on the right, built-in camera.
