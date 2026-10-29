@@ -1,0 +1,15 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Bundled app
+/dist/
+
+# Xcode (for contributors who open the package in Xcode)
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+
+# macOS
+.DS_Store
