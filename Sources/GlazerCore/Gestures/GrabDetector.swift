@@ -27,8 +27,13 @@ public struct GrabDetector: Sendable {
         public var closeWithin: TimeInterval = 0.8
         /// How long the fist must stay closed to count as a grab.
         public var closedFor: TimeInterval = 0.25
-        /// How long the hand must stay open to count as a drop.
-        public var openFor: TimeInterval = 0.2
+        /// Openness at and above which a held fist counts as opened, for a drop. Lower than
+        /// ``openAbove``: once a grab is held, any clear opening is the drop, so it needn't
+        /// wait for the fingers to spread fully.
+        public var dropAbove = 0.6
+        /// How long the hand must stay open to count as a drop. Readings aren't smoothed
+        /// while a grab is held, so this alone keeps one misread frame from dropping it.
+        public var openFor: TimeInterval = 0.15
         /// How far the hand may move while closing, as a share of the image width.
         public var maximumTravel = 0.15
         /// The longest a grab is held before it's given up.
@@ -161,7 +166,9 @@ public struct GrabDetector: Sendable {
             finish(at: timestamp)
             return .cancelled
         }
-        switch shape {
+        // Unsmoothed, so the drop follows the hand without waiting on older frames.
+        let opened = hand != nil && latest >= configuration.dropAbove
+        switch opened ? .open : shape {
         case .open:
             let since = openSince ?? timestamp
             openSince = since

@@ -137,6 +137,32 @@ struct GrabDetectorTests {
         #expect(run.events.last == .cancelled)
     }
 
+    @Test("A held fist drops as soon as it clearly opens, before the fingers spread fully")
+    func quickDrop() {
+        var run = Run()
+        run.grab()
+        let opened = run.time
+        // Two thirds open: a fist opening, not yet a spread hand.
+        run.show(0.45, for: 0.4)
+
+        guard case .dropped(let startedAt) = run.events.last else {
+            Issue.record("Expected a drop, got \(run.events)")
+            return
+        }
+        #expect(startedAt - opened < 0.1)
+    }
+
+    @Test("One misread open frame doesn't drop a held fist")
+    func heldMisread() {
+        var run = Run()
+        run.grab()
+        run.show(Hands.open, for: 0.05)
+        run.show(Hands.fist, for: 1)
+
+        #expect(run.events.count == 1)
+        #expect(run.detector.phase == .holding)
+    }
+
     @Test("A hand lowered briefly while held can still drop")
     func lowered() {
         var run = Run()

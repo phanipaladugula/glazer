@@ -14,6 +14,8 @@ final class GrabController {
         let url: URL
         let image: CGImage
         let png: Data
+        /// The clipboard's change count once the screenshot was copied.
+        let copied: Int
     }
 
     private let overlay = GrabOverlay()
@@ -26,6 +28,8 @@ final class GrabController {
     private var held: Task<Screenshot?, Never>?
     /// The display the user faces now, where the held screenshot follows them.
     private var facing: Display.ID?
+    /// While a grab is held, gets the app under the pointer ready to take a paste.
+    private var preparing: Task<Void, Never>?
 
     var isHolding: Bool {
         held != nil
@@ -46,8 +50,28 @@ final class GrabController {
         overlay.moveThumbnail(to: frame)
     }
 
+    /// Asks the app under the pointer, every moment while a grab is held, to describe its
+    /// content, so the drop can paste without waiting for it.
+    private func startPreparing() {
+        preparing?.cancel()
+        preparing = Task {
+            while !Task.isCancelled {
+                if let pointer = CGEvent(source: nil)?.location {
+                    PasteTarget.prepare(at: pointer)
+                }
+                try? await Task.sleep(for: .milliseconds(400))
+            }
+        }
+    }
+
+    private func stopPreparing() {
+        preparing?.cancel()
+        preparing = nil
+    }
+
     private func grab(_ display: Display.ID) {
         guard held == nil else { return }
+        startPreparing()
         held = Task {
             do {
                 let image = try await ScreenCapture.image(of: display)
@@ -57,7 +81,7 @@ final class GrabController {
                     let png = try ScreenshotStore.png(image)
                     return (png, try ScreenshotStore.save(png: png))
                 }.value
-                ScreenshotStore.copy(image, png: png)
+                let copied = ScreenshotStore.copy(png: png)
                 onCaptured?()
                 GrabFeedback.playShutter()
                 if let screen = screen(of: display) {
@@ -68,11 +92,12 @@ final class GrabController {
                     overlay.showThumbnail(image, on: frame)
                 }
                 Logger.gestures.notice("Grabbed display \(display, privacy: .public)")
-                return Screenshot(url: url, image: image, png: png)
+                return Screenshot(url: url, image: image, png: png, copied: copied)
             } catch {
                 Logger.gestures.error("Grab failed: \(String(describing: error), privacy: .public)")
                 NSSound.beep()
                 held = nil
+                stopPreparing()
                 // Say why where the user is looking, rather than failing silently.
                 if let frame = frame(of: display) {
                     if case .notAllowed = error as? ScreenCapture.Failure {
@@ -92,19 +117,26 @@ final class GrabController {
     private func drop(on display: Display.ID) {
         guard let held else { return }
         self.held = nil
+        stopPreparing()
         overlay.hideThumbnail()
+        let droppedAt = ContinuousClock.now
         Task {
             guard let screenshot = await held.value else { return }
             // Something else may have been copied since the grab.
-            ScreenshotStore.copy(screenshot.image, png: screenshot.png)
+            if !ScreenshotStore.stillCopied(screenshot.copied) {
+                ScreenshotStore.copy(png: screenshot.png)
+            }
 
             let pointer = CGEvent(source: nil)?.location ?? .zero
             let pointerDisplay = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }?
                 .displayID
             if pointerDisplay == display, let target = await PasteTarget.find(at: pointer) {
                 await PasteTarget.paste(at: pointer)
+                let elapsed = ContinuousClock.now - droppedAt
+                let milliseconds = Int(elapsed / .milliseconds(1))
                 Logger.gestures.notice(
-                    "Pasted into \(target, privacy: .public) on display \(display, privacy: .public)")
+                    "Pasted into \(target, privacy: .public) on display \(display, privacy: .public) \(milliseconds, privacy: .public) ms after the drop"
+                )
                 return
             }
             let pointerName = pointerDisplay.map { String($0) } ?? "none"
@@ -121,6 +153,7 @@ final class GrabController {
             Logger.gestures.notice("Grab cancelled: held too long, or the hand went out of view")
         }
         held = nil
+        stopPreparing()
         overlay.hideThumbnail()
     }
 

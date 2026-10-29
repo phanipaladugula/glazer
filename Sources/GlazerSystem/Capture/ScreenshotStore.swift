@@ -43,15 +43,24 @@ public enum ScreenshotStore {
         throw CocoaError(.fileWriteFileExists)
     }
 
-    /// Puts `image` on the clipboard as a PNG, and as TIFF for older apps.
+    /// Puts `png` on the clipboard and returns the clipboard's change count, to tell
+    /// later whether something else was copied since.
+    ///
+    /// PNG only. A TIFF copy as well, as some apps offer, would be uncompressed: about
+    /// 33 MB for a 4K display, which apps that prefer TIFF would then read on every paste.
     @MainActor
-    public static func copy(_ image: CGImage, png: Data) {
+    @discardableResult
+    public static func copy(png: Data) -> Int {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setData(png, forType: .png)
-        if let tiff = NSBitmapImageRep(cgImage: image).tiffRepresentation {
-            pasteboard.setData(tiff, forType: .tiff)
-        }
+        return pasteboard.changeCount
+    }
+
+    /// Whether the clipboard still holds what was copied at `changeCount`.
+    @MainActor
+    public static func stillCopied(_ changeCount: Int) -> Bool {
+        NSPasteboard.general.changeCount == changeCount
     }
 
     /// `image` as PNG data.

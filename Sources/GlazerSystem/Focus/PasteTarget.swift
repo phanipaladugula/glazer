@@ -41,15 +41,24 @@ public enum PasteTarget {
         return nil
     }
 
-    /// Pastes the clipboard at `point`: brings its window forward, clicks there so the
-    /// caret lands where the user pointed, then presses ⌘V.
+    /// Gets ready to paste at `point`, without waiting: asks the app there to describe its
+    /// content, so ``find(at:)`` needn't wait for it later. Call it while the user is on
+    /// their way to dropping.
+    public static func prepare(at point: CGPoint) {
+        guard AccessibilityAccess.isGranted, let element = element(at: point) else { return }
+        _ = askToDescribeContent(of: element)
+    }
+
+    /// Pastes the clipboard at `point`: brings its window forward if it isn't already,
+    /// clicks there so the caret lands where the user pointed, then presses ⌘V.
     public static func paste(at point: CGPoint) async {
-        if let element = element(at: point) {
+        if let element = element(at: point), !isFrontmost(element) {
             bringForward(element)
-            try? await Task.sleep(for: .milliseconds(150))
+            try? await Task.sleep(for: .milliseconds(100))
         }
         click(at: point)
-        try? await Task.sleep(for: .milliseconds(120))
+        // Long enough for the click to place the caret before the paste arrives.
+        try? await Task.sleep(for: .milliseconds(50))
         pressCommand(character: "v", fallback: CGKeyCode(kVK_ANSI_V))
     }
 
@@ -106,6 +115,11 @@ public enum PasteTarget {
     }
 
     // MARK: Pasting
+
+    private static func isFrontmost(_ element: AXUIElement) -> Bool {
+        element.processID != nil
+            && element.processID == NSWorkspace.shared.frontmostApplication?.processIdentifier
+    }
 
     private static func bringForward(_ element: AXUIElement) {
         if let window = element.element(kAXWindowAttribute) {

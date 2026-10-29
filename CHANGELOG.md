@@ -16,6 +16,8 @@ All notable changes to Glazer are recorded here. The format follows
 - **Hand calibration.** Glazer records your open hand and your fist, then where you hold
   your hand for each display, and lets you try grabs and drops, so it reads your hand in
   your light at your distance and sends each gesture to the display your hand is towards.
+- Dropping is quick: the paste starts as soon as your fist clearly opens, the app under
+  the pointer is made ready while you hold the fist, and the clipboard holds a PNG only.
 - Only your hand counts: hands are matched to your face by position and size, so other
   people's hands in view are ignored. Glazer reads the area around you in more detail,
   so hands are read from further back.

@@ -53,9 +53,12 @@ the worst failure, so the design leans towards missing a gesture over inventing 
   that stays closed 0.25 s and moved less than 15% of the image while closing. A fist
   that wasn't just an open hand, or that moved, is ignored, and so is a fist that was
   already closed: that's the mug and the chin.
-- **A drop** is the fist opening for 0.2 s. A grab held 15 s, or with the hand out of view
-  for 4 s, is cancelled. Readings are smoothed over three frames, so one misread frame
-  can't start or end anything, and there's a 1 s pause after each drop.
+- **A drop** is the held fist opening past 0.6 for 0.15 s. Once a grab is held, any clear
+  opening is the drop, so it doesn't wait for the fingers to spread fully, and its
+  readings aren't smoothed, so it follows the hand without lag; the 0.15 s keeps one
+  misread frame from dropping. A grab held 15 s, or with the hand out of view for 4 s, is
+  cancelled. Grabs use readings smoothed over three frames, so one misread frame can't
+  start one, and there's a 1 s pause after each drop.
 - **Which display:** the one the hand was held towards when the gesture began (when the
   hand was last seen open, or started opening). During calibration the user holds their
   open hand towards each display in turn, and Glazer records where it is relative to the
@@ -91,7 +94,14 @@ the worst failure, so the design leans towards missing a gesture over inventing 
 - Gestures cost CPU only while on: each frame is larger and is searched for hands as
   well as faces.
 - The clipboard holds the screenshot after a grab, as with macOS's own screenshot
-  shortcuts. A drop copies it again first, in case something else was copied meanwhile.
+  shortcuts, as a PNG only: a TIFF copy too would be uncompressed, about 33 MB for a 4K
+  display, and apps that prefer TIFF would read all of it on every paste. A drop copies it
+  again only if something else was copied meanwhile.
+- **Pasting is prepared while the fist is held.** Every 0.4 s Glazer asks the app under
+  the pointer to describe its content, so at the drop the text box is found at once, and
+  it skips bringing the app forward when it already is. From the hand opening to ⌘V is
+  then a few frames and about 50 ms. A large screenshot can still take the receiving app
+  a moment to take in.
 - Chromium and Electron apps are asked to describe their content to Accessibility, once
   each, so their text boxes can be found: Electron apps through `AXManualAccessibility`,
   Chromium browsers (Chrome, Edge, Brave, Arc and others, by bundle ID) through
