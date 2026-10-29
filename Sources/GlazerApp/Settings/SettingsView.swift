@@ -44,6 +44,12 @@ private struct GeneralSettings: View {
                         .foregroundStyle(.secondary)
                 }
                 Toggle("Open at login", isOn: $model.launchesAtLogin)
+                if model.launchAtLoginNeedsApproval {
+                    LabeledContent("Approve Glazer in Login Items to finish") {
+                        Button("Open Login Items…") { SystemSettings.open(.loginItems) }
+                    }
+                    .foregroundStyle(.secondary)
+                }
             }
 
             Section {
@@ -152,60 +158,68 @@ private struct FaceLockSettings: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
 
+    private var status: (title: String, detail: String, symbol: String, isActive: Bool) {
+        switch model.faceLock {
+        case .off:
+            (
+                "Face lock is off", "Glazer follows the person nearest the camera.",
+                "person.crop.circle.badge.questionmark", false
+            )
+        case .stored, .ready:
+            ("Face lock is on", "Glazer follows only you, even with other people in view.", "faceid", true)
+        case .unreadable:
+            (
+                "Face lock is paused", "Glazer couldn't read it from the Keychain, so it isn't following anyone.",
+                "key.slash", false
+            )
+        case .needsReenrolment:
+            (
+                "Face lock needs setting up again",
+                "This version reads faces differently. Until then, Glazer "
+                    + "follows the nearest person.", "arrow.triangle.2.circlepath", false
+            )
+        }
+    }
+
+    private func openSetup() {
+        openWindow(id: WindowID.faceLock)
+        NSApp.activate()
+    }
+
     var body: some View {
         Form {
             Section {
                 HStack(spacing: 14) {
-                    Image(systemName: model.isFaceLockOn ? "faceid" : "person.crop.circle.badge.questionmark")
+                    Image(systemName: status.symbol)
                         .font(.system(size: 30))
-                        .foregroundStyle(model.isFaceLockOn ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                        .foregroundStyle(status.isActive ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                         .frame(width: 44)
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 6) {
-                            Text(model.isFaceLockOn ? "Face lock is on" : "Face lock is off")
+                            Text(status.title)
                                 .font(.headline)
                             ExperimentalBadge()
                         }
-                        Text(
-                            model.isFaceLockOn
-                                ? "Glazer follows only you, even with other people in view."
-                                : "Glazer follows the person nearest the camera."
-                        )
-                        .foregroundStyle(.secondary)
+                        Text(status.detail)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    if model.isFaceLockOn {
+                    switch model.faceLock {
+                    case .off:
+                        Button("Set Up…", action: openSetup)
+                            .disabled(model.cameraAccess != .granted)
+                    case .needsReenrolment:
+                        Button("Set Up Again…", action: openSetup)
+                            .disabled(model.cameraAccess != .granted)
+                    case .unreadable:
+                        Button("Try Again") { model.retryFaceLock() }
+                    case .stored, .ready:
                         Button("Delete Face…", role: .destructive) {
                             Task { _ = await model.deleteFaceLock() }
                         }
-                    } else {
-                        Button("Set Up…") {
-                            openWindow(id: WindowID.faceLock)
-                            NSApp.activate()
-                        }
-                        .disabled(model.cameraAccess != .granted)
                     }
                 }
                 .padding(.vertical, 4)
-            }
-
-            if model.faceLock == .needsReenrolment {
-                Section {
-                    Label(
-                        "This version of Glazer reads faces differently. Delete your face and set up face lock "
-                            + "again to keep using it. Until then, Glazer follows the nearest person.",
-                        systemImage: "arrow.triangle.2.circlepath")
-                }
-            } else if model.faceLock == .unreadable {
-                Section {
-                    HStack {
-                        Label(
-                            "Glazer couldn't read your face lock from the Keychain, so it's paused.",
-                            systemImage: "key.slash")
-                        Spacer()
-                        Button("Try Again") { model.retryFaceLock() }
-                    }
-                }
             }
 
             Section("How your face is kept") {
@@ -282,8 +296,11 @@ private struct DiagnosticsSettings: View {
         Form {
             if model.gaze.mode == .idle {
                 Section {
-                    Text("Glazer isn't using the camera right now. Turn it on to see live readings.")
-                        .foregroundStyle(.secondary)
+                    Text(
+                        "Glazer isn't using the camera right now. Readings appear while it's following you, "
+                            + "calibrating or setting up face lock."
+                    )
+                    .foregroundStyle(.secondary)
                 }
             } else {
                 let diagnostics = model.gaze.diagnostics

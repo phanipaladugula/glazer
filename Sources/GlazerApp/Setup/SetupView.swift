@@ -107,7 +107,11 @@ struct SetupView: View {
                         symbol: "display.2",
                         text: "Connect a second display to calibrate. You can do it later from the menu bar.")
                 } else if model.calibration?.covers(model.displays) == true {
-                    PermissionStatus(isGranted: true, grantedText: "Your displays are calibrated", action: nil)
+                    VStack(spacing: 10) {
+                        PermissionStatus(isGranted: true, grantedText: "Your displays are calibrated", action: nil)
+                        Button("Calibrate Again") { model.calibrate { _ in NSApp.activate() } }
+                            .buttonStyle(.link)
+                    }
                 }
             }
         case .faceLock:

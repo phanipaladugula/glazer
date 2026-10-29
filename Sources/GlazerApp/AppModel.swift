@@ -51,9 +51,19 @@ final class AppModel {
         }
     }
 
+    /// Whether Glazer opens at login. Reads back what macOS actually did, so the switch
+    /// never shows on when registering failed.
     var launchesAtLogin: Bool {
-        didSet { LaunchAtLogin.setEnabled(launchesAtLogin) }
+        get { launchAtLoginEnabled }
+        set {
+            LaunchAtLogin.setEnabled(newValue)
+            launchAtLoginEnabled = LaunchAtLogin.isEnabled
+            launchAtLoginNeedsApproval = LaunchAtLogin.needsApproval
+        }
     }
+    private var launchAtLoginEnabled = LaunchAtLogin.isEnabled
+    /// macOS registered the login item but wants the user to approve it in System Settings.
+    private(set) var launchAtLoginNeedsApproval = LaunchAtLogin.needsApproval
 
     private(set) var hasCompletedSetup: Bool
     private(set) var calibration: Calibration?
@@ -109,7 +119,6 @@ final class AppModel {
         switchDelay = preferences.switchDelay
         hasCompletedSetup = preferences.hasCompletedSetup
         calibration = preferences.calibration
-        launchesAtLogin = LaunchAtLogin.isEnabled
 
         // Only whether a template exists: that never makes macOS ask for the Keychain.
         faceLock = vault.hasTemplate ? .stored : .off
@@ -146,7 +155,7 @@ final class AppModel {
     /// The display to highlight in the panel: the one Glazer has focused while running,
     /// otherwise the one under the pointer.
     var highlightedDisplay: Display.ID? {
-        if case .running = condition, let focused = gaze.output?.focusedDisplay {
+        if case .running = condition, let focused = gaze.focusedDisplay {
             return focused
         }
         return displayMonitor.pointerDisplayID
@@ -167,9 +176,13 @@ final class AppModel {
         let camera = CameraAccess.current
         let accessibility = AccessibilityAccess.isGranted
         guard camera != cameraAccess || accessibility != hasAccessibilityAccess else { return }
+        let gainedAccessibility = accessibility && !hasAccessibilityAccess
         cameraAccess = camera
         hasAccessibilityAccess = accessibility
         refresh()
+        if gainedAccessibility {
+            gaze.restartTypingMonitor()
+        }
     }
 
     func requestCameraAccess() async {
@@ -261,6 +274,11 @@ final class AppModel {
             Logger.app.error("Could not read the face template: \(String(describing: error), privacy: .public)")
             faceLock = .unreadable
         }
+    }
+
+    /// Tries the camera again after it failed or stopped.
+    func retryCamera() {
+        refresh()
     }
 
     /// Tries reading the face lock template again, after it couldn't be read.

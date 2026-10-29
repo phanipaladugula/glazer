@@ -92,6 +92,8 @@ struct StatusPanel: View {
             model.calibrate()
         case .retryFaceLock:
             model.retryFaceLock()
+        case .retryCamera:
+            model.retryCamera()
         }
     }
 
