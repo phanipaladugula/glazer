@@ -19,7 +19,6 @@ public final class Preferences {
         static let hasCompletedSetup = "hasCompletedSetup"
         static let switchDelay = "switchDelay"
         static let calibration = "calibration"
-        static let switchMode = "switchMode"
     }
 
     /// The range offered for ``switchDelay``, in seconds.
@@ -50,12 +49,6 @@ public final class Preferences {
             return min(max(value, Self.switchDelayRange.lowerBound), Self.switchDelayRange.upperBound)
         }
         set { store.set(newValue, forKey: Key.switchDelay) }
-    }
-
-    /// When keyboard focus follows the user's gaze. Defaults to ``SwitchMode/automatic``.
-    public var switchMode: SwitchMode {
-        get { (store.object(forKey: Key.switchMode) as? String).flatMap(SwitchMode.init) ?? .automatic }
-        set { store.set(newValue.rawValue, forKey: Key.switchMode) }
     }
 
     /// The saved calibration. Head angles only: no images and nothing that identifies the

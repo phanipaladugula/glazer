@@ -42,7 +42,7 @@ step. Turn to the other display and keep typing.
 - **Hands-free focus switching.** The pointer and keyboard focus go to the window you were last using on the display you face.
 - **Follows only you.** It ignores people walking past or sitting behind you. With face lock on, it follows only your face.
 - **Ignores glances.** A switch happens only after you've faced the other display for a moment, and looking down at your phone changes nothing.
-- **Types where you mean to.** The pointer moves when you look; keyboard focus follows when you start typing. Turn to talk to someone, or keep typing while you look away, and your words stay where they were.
+- **Never switches while you type.** Keep typing while you look at notes or talk to someone, and your words stay put. Pause for a second while facing the other display, and it's ready for you.
 - **Private by design.** Everything runs on your Mac. No video is recorded and nothing goes over the network.
 - **Native and light.** A small menu bar app built with Apple frameworks only, using about 12 camera frames a second, and the camera stays off when it isn't needed.
 
@@ -191,12 +191,11 @@ may decline to bring another app's window forward.
 </details>
 
 <details>
-<summary><b>I turned to talk to someone, and the pointer moved</b></summary>
+<summary><b>I turned to talk to someone, and focus moved</b></summary>
 
-That's expected: the pointer shows which display Glazer thinks you face. Keyboard focus
-doesn't move until you start typing, so nothing you type goes there. Face your display
-again and the pointer comes back. To keep even the pointer still, choose **While I hold
-Fn** in **Settings › General › Keyboard follows**.
+If you weren't typing, Glazer takes facing the other display as wanting to work there.
+Nothing is typed into it, and focus comes back when you face your display again. While
+you're typing, Glazer never switches.
 </details>
 
 <details>
