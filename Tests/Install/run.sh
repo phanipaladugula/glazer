@@ -131,6 +131,40 @@ fi
 check "a missing release fails clearly" fails install_from "$workspace/no-such-release" "$workspace/missing-out"
 check "...saying it couldn't download" output_contains "Couldn't"
 
+# --- Slow and stalled servers ------------------------------------------------------------
+#
+# On some networks one of GitHub's download servers accepts the connection and then sends
+# nothing. A stand-in curl, first on the PATH, fails its first $STALL_COUNT calls the way a
+# stalled transfer does (exit 28, after a moment), then runs the real curl.
+
+fakebin="$workspace/fakebin"
+mkdir -p "$fakebin"
+cat >"$fakebin/curl" <<'FAKE'
+#!/bin/bash
+calls=$(($(cat "$STALL_STATE" 2>/dev/null || echo 0) + 1))
+echo "$calls" >"$STALL_STATE"
+if ((calls <= STALL_COUNT)); then
+    sleep 0.3
+    echo "curl: (28) Operation timed out after 20000 milliseconds" >&2
+    exit 28
+fi
+exec /usr/bin/curl "$@"
+FAKE
+chmod +x "$fakebin/curl"
+
+# install_stalled COUNT DESTINATION: installs while the first COUNT requests stall.
+install_stalled() {
+    rm -f "$workspace/stall-state"
+    PATH="$fakebin:$PATH" STALL_COUNT=$1 STALL_STATE="$workspace/stall-state" install_from "$package" "$2"
+}
+
+check "a stalled server is tried again, and the install succeeds" install_stalled 2 "$workspace/stalled-out"
+check "...saying it's trying again" output_contains "Trying again (3 of 4)"
+check "...and installs the app" bash -c '[[ -d "$0/Glazer.app" ]]' "$workspace/stalled-out"
+check "a server that never answers fails after four tries" fails install_stalled 99 "$workspace/dead-out"
+check "...saying it couldn't reach GitHub" output_contains "Couldn't reach GitHub"
+check "...and nothing is installed" not_installed "$workspace/dead-out"
+
 # --- The animated terminal ---------------------------------------------------------------
 
 # terminal_test COLUMNS ROWS EXPECT LABEL [pty_run options]: installs into tty-LABEL.
@@ -162,6 +196,12 @@ check "a 100-column terminal shows the robot, every frame fits, the cursor comes
 check "...and installs the app" bash -c '[[ -d "$0/Glazer.app" ]]' "$workspace/tty-wide"
 check "a 64-column terminal shows the robot and every frame fits" terminal_test 64 24 animated narrow
 check "a 50-column terminal falls back to plain output" terminal_test 50 20 plain tiny
+stalled_terminal_test() {
+    rm -f "$workspace/stall-state"
+    PATH="$fakebin:$PATH" STALL_COUNT=2 STALL_STATE="$workspace/stall-state" terminal_test 100 30 animated stalled
+}
+check "while a stalled server is tried again, the robot keeps moving" stalled_terminal_test
+check "...and the app is installed" bash -c '[[ -d "$0/Glazer.app" ]]' "$workspace/tty-stalled"
 check "Ctrl-C cancels, restores the cursor and installs nothing" terminal_test 100 30 cancelled cancelled --interrupt-after 0.8
 check "...and leaves no app behind" not_installed "$workspace/tty-cancelled"
 
