@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/images/icon.png" width="128" height="128" alt="The Glazer app icon: a MacBook and a monitor, with focus hopping along a glowing arc to the lit monitor.">
+
 # Glazer
 
 **Your keyboard follows your eyes.**

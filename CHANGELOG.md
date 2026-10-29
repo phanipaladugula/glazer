@@ -15,6 +15,12 @@ All notable changes to Glazer are recorded here. The format follows
 - Settings › General › Keyboard follows: when I start typing (default), while I hold Fn,
   or right away.
 
+## [0.1.1] - 2026-10-29
+
+### Added
+
+- An app icon, shown in Finder, the Dock, Launchpad, About Glazer and the setup window.
+
 ## [0.1.0] - 2026-10-29
 
 ### Added
@@ -39,5 +45,6 @@ All notable changes to Glazer are recorded here. The format follows
 
 - Requires macOS 15 Sequoia or later.
 
-[Unreleased]: https://github.com/phanipaladugula/glazer/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/phanipaladugula/glazer/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/phanipaladugula/glazer/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/phanipaladugula/glazer/releases/tag/v0.1.0
