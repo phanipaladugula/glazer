@@ -29,6 +29,7 @@ Look at the other screen and start typing. Glazer moves the pointer and keyboard
 - [Install](#install)
 - [Getting started](#getting-started)
 - [Switch with a shortcut](#switch-with-a-shortcut)
+- [Grab and drop screenshots](#grab-and-drop-screenshots)
 - [Face lock](#face-lock)
 - [Troubleshooting](#troubleshooting)
 - [Roadmap](#roadmap)
@@ -169,6 +170,35 @@ yours, and tells you if one is taken rather than having one key press do two thi
 macOS tells Glazer only when your shortcut is pressed; Glazer never watches the keyboard
 for it.
 
+## Grab and drop screenshots
+
+> [!NOTE]
+> Hand gestures are **experimental** and off until you turn them on in **Settings ›
+> Gestures**. They need the camera, so they work when Glazer switches by where you look.
+
+Move a screenshot from one display to another with your hand:
+
+1. **Grab.** Facing a display, raise your hand open, then close it into a fist. Glazer
+   takes a screenshot of that display (only that one), plays the shutter sound, saves it
+   with your other screenshots and copies it.
+2. **Carry.** Keep your fist closed and turn to another display. A thumbnail follows you.
+3. **Drop.** Open your hand. If the pointer is on a text box or message field there, such
+   as a chat or an email, Glazer pastes the screenshot into it. Otherwise it opens the
+   screenshot on that display.
+
+Before the first grab, **calibrate your hand**: Glazer records your open hand and your fist
+twice each, about 15 seconds, and then lets you try a grab and a drop. Hands, cameras and
+lighting differ too much for one setting to suit everyone, so Glazer compares each frame
+with your own two shapes rather than a fixed threshold.
+
+A fist on its own never takes a screenshot: the hand must be open just before and stay in
+place as it closes, so holding a mug or resting your chin on your hand doesn't count.
+Gestures need **Screen Recording** permission to take the screenshot.
+[ADR 0009](docs/adr/0009-grab-and-drop-with-hand-gestures.md) explains how it works.
+
+To check how well the camera reads your hand, run `swift run glazer-camera-check --hands`
+and open and close it: it prints how open the hand looks, from 0% to 100%.
+
 ## Face lock
 
 <img src="docs/images/screenshots/face-lock.png" width="300" align="right" alt="Face lock setup: a camera circle ringed by progress ticks.">
@@ -276,6 +306,7 @@ The uninstall command does all of this, and removes the face lock item too.
 - [x] Head direction from the camera, following only the person at the Mac
 - [x] Calibration at the centre and corners of each display, and moving the pointer and keyboard focus
 - [x] Switching with a keyboard shortcut, with or without the camera
+- [x] Grab a screenshot with your hand and drop it on another display (experimental)
 - [x] Releases signed with Glazer's own certificate, so updates keep their permissions
 - [x] Low-light detection
 - [x] Face lock, stored in the login keychain, set up and deleted with Touch ID

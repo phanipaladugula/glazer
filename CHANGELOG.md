@@ -6,6 +6,17 @@ All notable changes to Glazer are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Grab and drop screenshots with your hand** (experimental). Facing a display, close
+  your open hand into a fist: Glazer takes a screenshot of that display, saves it with
+  your screenshots and copies it. Turn to another display and open your hand: if the
+  pointer is on a text box there, Glazer pastes the screenshot into it; otherwise it opens
+  the screenshot on that display. Turn it on in **Settings › Gestures**.
+- **Hand calibration.** Glazer records your open hand and your fist, then lets you try a
+  grab and a drop, so it reads your hand in your light at your distance.
+- `glazer-camera-check --hands` prints how open the camera sees your hand.
+
 ### Fixed
 
 - The install script could look frozen for a minute or more. On some networks one of
