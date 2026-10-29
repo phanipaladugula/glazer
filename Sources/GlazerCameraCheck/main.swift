@@ -7,6 +7,12 @@
 // yaw should change smoothly by 20 degrees or more. Press Ctrl-C to stop. Nothing is
 // recorded or saved.
 //
+//   swift run glazer-camera-check --hands
+//
+// Also reads the nearest hand: its shape measures (reach, curl, spread) and how open it
+// is, from 0% (fist) to 100% (open), by the hand calibration saved in Glazer if there is
+// one, otherwise by a typical hand. Open and close your hand: the two should be far apart.
+//
 // macOS asks for camera access the first time, for the app this runs in (such as Terminal).
 
 import AppKit
@@ -21,6 +27,15 @@ final class CameraCheck {
     private var tracker = UserTracker()
     private var lastPrint = 0.0
     private var yawRange: ClosedRange<Double>?
+    private let readsHands = CommandLine.arguments.contains("--hands")
+    private lazy var handCalibration: (HandCalibration, String) = {
+        if let defaults = UserDefaults(suiteName: "io.github.phanipaladugula.glazer"),
+            let saved = Preferences(store: defaults).handCalibration
+        {
+            return (saved, "your calibration")
+        }
+        return (.typical, "a typical hand")
+    }()
 
     func run() async {
         switch await CameraAccess.request() {
@@ -36,7 +51,12 @@ final class CameraCheck {
             exit(1)
         }
 
-        print("Turn your head between your displays. Ctrl-C to stop.\n")
+        if readsHands {
+            camera.setWantsHands(true)
+            print("Open and close your hand, read against \(handCalibration.1). Ctrl-C to stop.\n")
+        } else {
+            print("Turn your head between your displays. Ctrl-C to stop.\n")
+        }
         do {
             try await camera.start { [weak self] frame in
                 Task { @MainActor in self?.handle(frame) }
@@ -64,6 +84,22 @@ final class CameraCheck {
             line += "  ·  no face followed"
         }
         line += "  ·  light \(light)" + String(format: " (%.0f%%)", frame.brightness * 100)
+        if readsHands {
+            // The user's hand, beside the biggest face, as Glazer picks it.
+            if let face = frame.nearestFace?.bounds,
+                let hand = UserHand.hand(of: face, among: frame.hands, aspectRatio: frame.aspectRatio)
+            {
+                let features = hand.features
+                line += String(
+                    format: "  ·  hand %3.0f%% open  (reach %.2f, curl %.2f, spread %.2f, size %.2f)",
+                    handCalibration.0.openness(of: features) * 100, features.reach, features.curl, features.spread,
+                    hand.size)
+            } else {
+                line += frame.hands.isEmpty ? "  ·  no hand" : "  ·  \(frame.hands.count) hand(s), none yours"
+            }
+            camera.setHandArea(
+                frame.nearestFace.map { UserHand.searchArea(around: $0.bounds, aspectRatio: frame.aspectRatio) })
+        }
 
         guard frame.timestamp - lastPrint >= 0.2 else { return }
         lastPrint = frame.timestamp

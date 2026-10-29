@@ -1,3 +1,4 @@
+import CoreGraphics
 import Testing
 
 @testable import GlazerCore
@@ -57,5 +58,41 @@ struct PreferencesWriteTests {
         let reloaded = Preferences(store: store)
         #expect(reloaded.hasCompletedSetup)
         #expect(reloaded.switchDelay == 0.9)
+    }
+}
+
+@Suite("Preferences, gestures")
+struct GesturePreferencesTests {
+    @Test("Gestures start off, with no hand calibration")
+    func defaults() {
+        let preferences = Preferences(store: MemoryStore())
+
+        #expect(!preferences.gesturesEnabled)
+        #expect(preferences.handCalibration == nil)
+    }
+
+    @Test("Gestures and the hand calibration persist")
+    func persists() {
+        let store = MemoryStore()
+        let preferences = Preferences(store: store)
+        preferences.gesturesEnabled = true
+        preferences.handCalibration = Hands.calibration
+
+        let reloaded = Preferences(store: store)
+        #expect(reloaded.gesturesEnabled)
+        #expect(reloaded.handCalibration == Hands.calibration)
+
+        reloaded.handCalibration = nil
+        #expect(Preferences(store: store).handCalibration == nil)
+    }
+
+    @Test("The hand aim persists")
+    func aim() throws {
+        let store = MemoryStore()
+        let aim = HandAim(targets: [.init(display: 1, offset: CGPoint(x: -1, y: 0))], variation: 0.2)
+        #expect(Preferences(store: store).handAim == nil)
+
+        Preferences(store: store).handAim = aim
+        #expect(Preferences(store: store).handAim == aim)
     }
 }

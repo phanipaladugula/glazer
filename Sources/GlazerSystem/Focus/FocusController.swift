@@ -110,7 +110,18 @@ public final class FocusController {
             )
             return false
         }
-        return Self.isFrontmost(application)
+        return Self.becomesFrontmost(application)
+    }
+
+    /// Whether `application` reports itself frontmost within a moment. Switching apps
+    /// takes macOS a few milliseconds after it accepts the request, so reading it back
+    /// straight away often still says no, which made focus look as if it hadn't moved.
+    private static func becomesFrontmost(_ application: AXUIElement) -> Bool {
+        for _ in 0..<25 {
+            if isFrontmost(application) { return true }
+            usleep(10_000)
+        }
+        return false
     }
 
     /// Whether `application` reports itself frontmost, read back through Accessibility.
@@ -129,27 +140,10 @@ public final class FocusController {
         else { return nil }
 
         return windows.first { window in
-            guard let frame = frame(of: window) else { return false }
+            guard let frame = window.frame else { return false }
             return abs(frame.minX - bounds.minX) < 2 && abs(frame.minY - bounds.minY) < 2
                 && abs(frame.width - bounds.width) < 2 && abs(frame.height - bounds.height) < 2
         }
-    }
-
-    private static func frame(of window: AXUIElement) -> CGRect? {
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionValue) == .success,
-            AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue) == .success,
-            let positionValue, let sizeValue,
-            CFGetTypeID(positionValue) == AXValueGetTypeID(), CFGetTypeID(sizeValue) == AXValueGetTypeID()
-        else { return nil }
-
-        var position = CGPoint.zero
-        var size = CGSize.zero
-        // The type IDs were checked above, so these downcasts are safe.
-        AXValueGetValue(unsafeDowncast(positionValue, to: AXValue.self), .cgPoint, &position)
-        AXValueGetValue(unsafeDowncast(sizeValue, to: AXValue.self), .cgSize, &size)
-        return CGRect(origin: position, size: size)
     }
 
     /// The pointer's location in Core Graphics global coordinates.

@@ -38,3 +38,28 @@ struct FrameAnalyzerTests {
         #expect(frame.timestamp == 3)
     }
 }
+
+@Suite("FrameAnalyzer, hands")
+struct FrameAnalyzerHandTests {
+    @Test("Hands are looked for only when asked, and an empty image has none")
+    func noHands() throws {
+        let image = try FrameAnalyzerTests().image(luma: 120)
+
+        let whole = CGRect(x: 0, y: 0, width: 1, height: 1)
+        #expect(FrameAnalyzer().analyze(image, at: 0, includeSignatures: false, handArea: whole).hands.isEmpty)
+        #expect(FrameAnalyzer().analyze(image, at: 0, includeSignatures: false).hands.isEmpty)
+    }
+
+    @Test("An area too small to read is skipped")
+    func tinyArea() throws {
+        let image = try FrameAnalyzerTests().image(luma: 120)
+
+        #expect(FrameAnalyzer.hands(in: image, area: CGRect(x: 0.5, y: 0.5, width: 0.01, height: 0.01)).isEmpty)
+    }
+
+    @Test("No observations give no hands")
+    func noObservations() {
+        let size = CGSize(width: 1280, height: 720)
+        #expect(FrameAnalyzer.readings(of: [], crop: CGRect(origin: .zero, size: size), imageSize: size).isEmpty)
+    }
+}

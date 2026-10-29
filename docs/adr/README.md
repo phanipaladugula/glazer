@@ -14,3 +14,4 @@ old one.
 | [0006](0006-switch-with-a-double-pressed-key.md) | Switch displays with a double-pressed key | Superseded by 0008 |
 | [0007](0007-calibrate-centre-and-corners.md) | Calibrate the centre and corners of each display | Accepted |
 | [0008](0008-switch-with-a-keyboard-shortcut.md) | Switch displays with a keyboard shortcut | Accepted |
+| [0009](0009-grab-and-drop-with-hand-gestures.md) | Grab and drop screenshots with hand gestures | Accepted |

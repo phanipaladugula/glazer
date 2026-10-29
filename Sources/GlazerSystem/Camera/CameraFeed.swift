@@ -38,6 +38,9 @@ public final class CameraFeed: NSObject, @unchecked Sendable {
         /// The unique ID of the camera the session uses.
         var deviceID: String?
         var wantsSignatures = false
+        var wantsHands = false
+        /// Where to look for hands; the whole image when `nil`.
+        var handArea: CGRect?
         var lastAnalysis: TimeInterval = -.infinity
         var isConfigured = false
     }
@@ -100,6 +103,40 @@ public final class CameraFeed: NSObject, @unchecked Sendable {
         state.withLock { $0.wantsSignatures = wantsSignatures }
     }
 
+    /// Whether frames should include the nearest hand. Finding hands costs about as much
+    /// as finding faces, and reads small hands better from a sharper image, so while it's
+    /// on the camera runs at 1280×720 instead of 640×480.
+    public func setWantsHands(_ wantsHands: Bool) {
+        let changed = state.withLock { state in
+            defer { state.wantsHands = wantsHands }
+            return state.wantsHands != wantsHands
+        }
+        guard changed else { return }
+        sessionQueue.async { [self] in
+            guard state.withLock({ $0.isConfigured }) else { return }
+            session.beginConfiguration()
+            applyPreset()
+            session.commitConfiguration()
+        }
+    }
+
+    /// Where to look for hands, in normalised image coordinates: around the user, so
+    /// distant hands are read in more detail and other people's are left out. `nil` looks
+    /// everywhere.
+    public func setHandArea(_ area: CGRect?) {
+        state.withLock { $0.handArea = area }
+    }
+
+    /// Chooses the resolution for whether hands are wanted. Call inside a configuration.
+    private func applyPreset() {
+        let preset: AVCaptureSession.Preset = state.withLock { $0.wantsHands } ? .hd1280x720 : .vga640x480
+        if session.canSetSessionPreset(preset) {
+            session.sessionPreset = preset
+        } else if session.canSetSessionPreset(.vga640x480) {
+            session.sessionPreset = .vga640x480
+        }
+    }
+
     /// Sets up the session with the preferred camera, or rebuilds it when the camera it
     /// was using has gone away.
     private func configureIfNeeded() throws {
@@ -122,11 +159,10 @@ public final class CameraFeed: NSObject, @unchecked Sendable {
             $0.deviceID = nil
         }
 
-        if session.canSetSessionPreset(.vga640x480) {
-            session.sessionPreset = .vga640x480
-        }
         guard session.canAddInput(input) else { throw Failure.cannotOpenCamera }
         session.addInput(input)
+        // The preset depends on the input, so it's chosen once the camera is added.
+        applyPreset()
 
         let output = AVCaptureVideoDataOutput()
         output.alwaysDiscardsLateVideoFrames = true
@@ -189,14 +225,16 @@ extension CameraFeed: AVCaptureVideoDataOutputSampleBufferDelegate {
         let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
         let minimumInterval = 1 / framesPerSecond
 
-        let job = state.withLock { state -> (handler: @Sendable (Frame) -> Void, signatures: Bool)? in
+        let job = state.withLock { state -> (handler: @Sendable (Frame) -> Void, signatures: Bool, hands: CGRect?)? in
             guard let handler = state.onFrame, timestamp - state.lastAnalysis >= minimumInterval else { return nil }
             state.lastAnalysis = timestamp
-            return (handler, state.wantsSignatures)
+            let whole = CGRect(x: 0, y: 0, width: 1, height: 1)
+            return (handler, state.wantsSignatures, state.wantsHands ? state.handArea ?? whole : nil)
         }
         guard let job, let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
-        let frame = analyzer.analyze(pixelBuffer, at: timestamp, includeSignatures: job.signatures)
+        let frame = analyzer.analyze(
+            pixelBuffer, at: timestamp, includeSignatures: job.signatures, handArea: job.hands)
         job.handler(frame)
     }
 }

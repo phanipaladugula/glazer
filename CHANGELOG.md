@@ -6,7 +6,28 @@ All notable changes to Glazer are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Grab and drop screenshots with your hand** (experimental). Facing a display, close
+  your open hand into a fist: Glazer takes a screenshot of that display, saves it with
+  your screenshots and copies it. Turn to another display and open your hand: if the
+  pointer is on a text box there, Glazer pastes the screenshot into it; otherwise it opens
+  the screenshot on that display. Turn it on in **Settings › Gestures**.
+- **Hand calibration.** Glazer records your open hand and your fist, then where you hold
+  your hand for each display, and lets you try grabs and drops, so it reads your hand in
+  your light at your distance and sends each gesture to the display your hand is towards.
+- Dropping is quick: the paste starts as soon as your fist clearly opens, the app under
+  the pointer is made ready while you hold the fist, and the clipboard holds a PNG only.
+- Only your hand counts: hands are matched to your face by position and size, so other
+  people's hands in view are ignored. Glazer reads the area around you in more detail,
+  so hands are read from further back.
+- `glazer-camera-check --hands` prints how open the camera sees your hand.
+
 ### Fixed
+
+- Keyboard focus often seemed not to move to another display, so the pointer stayed
+  behind. macOS takes a few milliseconds to switch apps, and Glazer read the result back
+  before it had; it now waits up to a quarter of a second for it.
 
 - The install script could look frozen for a minute or more. On some networks one of
   GitHub's download servers accepts the connection and then sends nothing, and curl

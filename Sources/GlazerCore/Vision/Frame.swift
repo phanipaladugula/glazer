@@ -12,10 +12,29 @@ public struct Frame: Sendable {
     /// The average brightness of the frame, from 0 (black) to 1 (white).
     public let brightness: Double
 
-    public init(timestamp: TimeInterval, faces: [DetectedFace], brightness: Double) {
+    /// Every readable hand in view, biggest first, on frames where hands were looked for:
+    /// only while hand gestures are on, because finding them costs about as much as
+    /// finding faces. Which one is the user's is decided with ``UserHand``.
+    public let hands: [HandReading]
+
+    /// The image's width divided by its height, to compare distances across and up.
+    public let aspectRatio: Double
+
+    public init(
+        timestamp: TimeInterval, faces: [DetectedFace], brightness: Double, hands: [HandReading] = [],
+        aspectRatio: Double = 16.0 / 9.0
+    ) {
         self.timestamp = timestamp
         self.faces = faces
         self.brightness = brightness
+        self.hands = hands
+        self.aspectRatio = aspectRatio
+    }
+
+    /// The biggest face, which is the user's while nobody else is in view, such as during
+    /// calibration.
+    public var nearestFace: DetectedFace? {
+        faces.max { $0.area < $1.area }
     }
 }
 

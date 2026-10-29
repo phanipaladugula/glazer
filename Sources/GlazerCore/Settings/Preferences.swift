@@ -21,6 +21,9 @@ public final class Preferences {
         static let calibration = "calibration"
         static let switchingMethod = "switchingMethod"
         static let switchShortcut = "switchShortcut"
+        static let gesturesEnabled = "gesturesEnabled"
+        static let handCalibration = "handCalibration"
+        static let handAim = "handAim"
     }
 
     /// The range offered for ``switchDelay``, in seconds.
@@ -85,5 +88,36 @@ public final class Preferences {
             return shortcut
         }
         set { store.set(try? JSONEncoder().encode(newValue), forKey: Key.switchShortcut) }
+    }
+
+    /// Whether hand gestures take and drop screenshots. Off until the user turns it on,
+    /// because it needs Screen Recording permission.
+    public var gesturesEnabled: Bool {
+        get { store.object(forKey: Key.gesturesEnabled) as? Bool ?? false }
+        set { store.set(newValue, forKey: Key.gesturesEnabled) }
+    }
+
+    /// The user's open hand and fist, as the camera sees them. Measurements only: no
+    /// images.
+    public var handCalibration: HandCalibration? {
+        get {
+            guard let data = store.object(forKey: Key.handCalibration) as? Data else { return nil }
+            return try? JSONDecoder().decode(HandCalibration.self, from: data)
+        }
+        set {
+            store.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: Key.handCalibration)
+        }
+    }
+
+    /// Where the user holds their hand for each display, when calibration could tell the
+    /// displays apart that way.
+    public var handAim: HandAim? {
+        get {
+            guard let data = store.object(forKey: Key.handAim) as? Data else { return nil }
+            return try? JSONDecoder().decode(HandAim.self, from: data)
+        }
+        set {
+            store.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: Key.handAim)
+        }
     }
 }

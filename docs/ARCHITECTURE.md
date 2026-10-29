@@ -78,18 +78,20 @@ doesn't pull it straight back.
 | `Switching/` | `SwitchingMethod` |
 | `Identity/` | `FaceSignature`, `FaceTemplate` (with its learned threshold), `IdentityVerifier`, `FaceEnrollment` |
 | `Engine/` | `GazeEngine`, which ties the pipeline together, and `TypingGuard`, which holds switches back while the user types |
-| `Display/` | `Display`, `DisplayLayout`, lookup by point, reading order |
+| `Display/` | `Display`, `DisplayLayout`, lookup by point, reading order, `Placement` (centre a window on a display) |
 | `Settings/` | `Preferences`: on/off, setup state, switching method and key, switch delay, calibration |
 | `Models/` | `KeyboardShortcut`, with the rules for a switch shortcut |
+| `Gestures/` | `HandJoints` and `HandFeatures` (how open a hand is, scale-free), `HandCalibration` and its recorder, `UserHand` (which hand is the user's, and where to look for it), `HandAim` and its recorder (which display the hand is held towards), `GrabDetector` (grab and drop), `DisplayHistory` |
 
 ### GlazerSystem
 
 | Area | Contents |
 |---|---|
 | `Camera/` | `CameraFeed`, `CameraAccess` |
+| `Capture/` | `ScreenCapture` (one display, with ScreenCaptureKit), `ScreenCaptureAccess`, `ScreenshotStore` (saves and copies) |
 | `Vision/` | `FrameAnalyzer` |
 | `Security/` | `FaceVault` (Keychain), `OwnerAuthentication` (Touch ID or password) |
-| `Focus/` | `FocusController`, `TypingMonitor`, `AccessibilityAccess` |
+| `Focus/` | `FocusController`, `TypingMonitor`, `AccessibilityAccess`, `PasteTarget` (is the pointer on a text field, and paste there) |
 | `Display/` | `DisplayMonitor` |
 | `HotKey/` | `HotKey`, a global shortcut through Carbon that can refuse one macOS or another app uses; `KeyCodes` |
 | `Login/` | `LaunchAtLogin` |
@@ -103,21 +105,31 @@ doesn't pull it straight back.
 | `Gaze/` | `GazeController`: runs the camera and the engine, and moves focus |
 | `Calibration/` | Full-screen overlays with the dots to click, and the calibration session |
 | `FaceLock/` | Face lock setup, with a live camera preview |
+| `Gestures/` | `GrabController` (screenshot on a grab; paste or open on the drop), `GrabOverlay` (flash, held thumbnail and messages), `ScreenshotWindows` (a dropped screenshot on its display), hand calibration window |
 | `Setup/` | The first-run setup window |
-| `Settings/` | General, Displays, Face Lock, Privacy and Diagnostics tabs |
+| `Settings/` | General, Displays, Face Lock, Gestures, Privacy and Diagnostics tabs |
 | `Views/` | Menu bar icon, panel, display map, and `ConditionPresentation` (every state's copy and icon) |
 
 The interface follows the [design spec](design/README.md).
 
 ## When the camera runs
 
-The camera is on only in three modes, all owned by `GazeController`:
+The camera is on only in four modes, all owned by `GazeController`:
 
 | Mode | When |
 |---|---|
 | Following | Glazer is on, set up to switch with the camera, has camera access, and is calibrated for two or more connected displays |
 | Calibrating | During calibration |
 | Enrolling | During face lock setup |
+| Calibrating hands | During hand calibration for gestures |
+
+While following with hand gestures on, frames also carry the hands found in the area
+around the user's face, read from a cropped image for detail. `GazeController` keeps only
+the user's hand (`UserHand`) and feeds it to a `GrabDetector`. Each grab or drop goes to the
+display the hand was held towards when it began (`HandAim`), or failing that the display
+the user faced, from a `DisplayHistory`, because a raised hand often hides the face by the
+time the gesture is recognised
+([ADR 0009](adr/0009-grab-and-drop-with-hand-gestures.md)).
 
 Otherwise the camera is off. With only one display connected, or when switching by key
 only, Glazer doesn't run the camera at all.
