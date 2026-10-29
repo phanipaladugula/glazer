@@ -1,9 +1,18 @@
 name: CI
 
+# Every push to main and every pull request runs these jobs in parallel. All must pass.
+#
+#   Lint                    ShellCheck, actionlint, Markdown links, generated figures.
+#   Build and test          Formatting, debug and release builds with warnings as errors,
+#                           all tests, and a minimum coverage of the core logic.
+#   Package and smoke test  The universal app, its signature and icon, the installer's test
+#                           suite, and launching the app.
+
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,10 +21,54 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Minimum line coverage of GlazerCore, the decision logic. It's at 99%; this leaves room
+  # for small changes without letting coverage slide.
+  MINIMUM_CORE_COVERAGE: "95"
+  ACTIONLINT_VERSION: "1.7.7"
+
 jobs:
-  build:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # Actions are pinned to exact commits, so a moved tag can't change what runs.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Install actionlint
+        run: |
+          set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          base="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}"
+          curl -fsSLO --proto '=https' --tlsv1.2 "$base/$archive"
+          curl -fsSL --proto '=https' --tlsv1.2 "$base/actionlint_${ACTIONLINT_VERSION}_checksums.txt" -o checksums.txt
+          grep " $archive\$" checksums.txt | sha256sum --check --strict
+          tar -xzf "$archive" actionlint
+          sudo install -m 755 actionlint /usr/local/bin/actionlint
+          rm -f "$archive" checksums.txt actionlint
+
+      - name: Tool versions
+        run: |
+          shellcheck --version | head -2
+          actionlint --version | head -1
+          node --version
+
+      - name: Lint shell scripts, workflows and docs
+        run: Scripts/lint.sh --strict --only shell,workflows,docs
+
+      - name: The README figure matches its source
+        run: |
+          node docs/figure/build.mjs
+          git diff --exit-code -- docs/images/hero-light.svg docs/images/hero-dark.svg ||
+            { echo "::error::docs/images are out of date. Run: node docs/figure/build.mjs"; exit 1; }
+
+  build-and-test:
     name: Build and test
     runs-on: macos-26
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -24,21 +77,66 @@ jobs:
       - name: Toolchain
         run: swift --version
 
-      - name: Check formatting
-        run: Scripts/format.sh --check
+      - name: Lint Swift and property lists
+        run: Scripts/lint.sh --strict --only swift,plists
 
-      - name: Check shell scripts
-        run: for script in install.sh Scripts/*.sh; do bash -n "$script"; done
+      - name: Build release with warnings as errors
+        run: swift build --configuration release -Xswiftc -warnings-as-errors
 
-      - name: Test
-        run: Scripts/test.sh
+      - name: Test, with coverage
+        run: Scripts/test.sh --warnings-as-errors --min-coverage "$MINIMUM_CORE_COVERAGE"
 
-      - name: Bundle
-        run: Scripts/bundle.sh
+  package:
+    name: Package and smoke test
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          # The bundle's version and build number come from the tags and commit count.
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Upload app
+      - name: Build the universal app
+        run: Scripts/bundle.sh --universal
+
+      - name: The icon has every size macOS uses
+        run: |
+          set -euo pipefail
+          iconutil --convert iconset --output "$RUNNER_TEMP/Glazer.iconset" Resources/Glazer.icns
+          count="$(find "$RUNNER_TEMP/Glazer.iconset" -name '*.png' | wc -l | tr -d ' ')"
+          echo "Icon sizes: $count"
+          [[ "$count" -eq 10 ]]
+
+      - name: Package
+        run: Scripts/package.sh
+
+      - name: Installer tests
+        run: Tests/Install/run.sh dist
+
+      - name: The app launches and stays running
+        run: |
+          set -euo pipefail
+          reports="$HOME/Library/Logs/DiagnosticReports"
+          before="$(find "$reports" -name 'Glazer*' 2>/dev/null | wc -l | tr -d ' ')"
+          dist/Glazer.app/Contents/MacOS/Glazer &
+          pid=$!
+          sleep 10
+          if ! kill -0 "$pid" 2>/dev/null; then
+            echo "::error::Glazer exited within 10 seconds of launching."
+            exit 1
+          fi
+          kill "$pid"
+          wait "$pid" 2>/dev/null || true
+          after="$(find "$reports" -name 'Glazer*' 2>/dev/null | wc -l | tr -d ' ')"
+          [[ "$after" -eq "$before" ]] || { echo "::error::Glazer left a crash report."; exit 1; }
+          echo "Glazer ran for 10 seconds without crashing."
+
+      - name: Upload the app
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: Glazer.app
-          path: dist/Glazer.app
+          name: Glazer-${{ github.sha }}
+          path: |
+            dist/Glazer.zip
+            dist/Glazer.zip.sha256
           retention-days: 7
