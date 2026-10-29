@@ -22,6 +22,9 @@ jobs:
       - name: Check formatting
         run: Scripts/format.sh --check
 
+      - name: Check shell scripts
+        run: for script in install.sh Scripts/*.sh; do bash -n "$script"; done
+
       - name: Test
         run: Scripts/test.sh
 

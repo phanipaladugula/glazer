@@ -59,7 +59,7 @@ public final class DisplayMonitor {
 
 extension Display {
     @MainActor
-    init?(screen: NSScreen) {
+    public init?(screen: NSScreen) {
         let key = NSDeviceDescriptionKey("NSScreenNumber")
         guard let number = screen.deviceDescription[key] as? NSNumber else { return nil }
         self.init(id: number.uint32Value, name: screen.localizedName, frame: screen.frame)

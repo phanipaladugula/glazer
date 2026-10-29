@@ -5,7 +5,7 @@ import PackageDescription
 let package = Package(
     name: "Glazer",
     platforms: [
-        .macOS(.v14)
+        .macOS(.v15)
     ],
     products: [
         .executable(name: "Glazer", targets: ["GlazerApp"])
@@ -28,6 +28,10 @@ let package = Package(
         .testTarget(
             name: "GlazerCoreTests",
             dependencies: ["GlazerCore"]
+        ),
+        .testTarget(
+            name: "GlazerSystemTests",
+            dependencies: ["GlazerSystem", "GlazerCore"]
         ),
     ]
 )

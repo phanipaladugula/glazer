@@ -1,3 +1,4 @@
+import GlazerCore
 import SwiftUI
 
 @main
@@ -9,10 +10,34 @@ struct GlazerApp: App {
         MenuBarExtra {
             StatusPanel(model: model)
         } label: {
-            MenuBarIcon(isEnabled: model.isEnabled)
+            MenuBarIcon(condition: model.condition)
         }
         .menuBarExtraStyle(.window)
+
+        Window("Welcome to Glazer", id: WindowID.setup) {
+            SetupView(model: model)
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(Preferences().hasCompletedSetup ? .suppressed : .presented)
+
+        Window("Face Lock", id: WindowID.faceLock) {
+            FaceLockSetupView(model: model)
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
+
+        Settings {
+            SettingsView(model: model)
+        }
     }
+}
+
+enum WindowID {
+    static let setup = "setup"
+    static let faceLock = "face-lock"
 }
 
 private final class AppDelegate: NSObject, NSApplicationDelegate {

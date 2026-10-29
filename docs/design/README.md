@@ -1,7 +1,9 @@
-# Menu bar design
+# Design
 
 Glazer lives in the menu bar. It has no Dock icon and no main window. Everything a person
-needs day to day fits in one small panel.
+needs day to day fits in one small panel. Three windows appear only when needed: setup on
+first launch, face lock setup, and Settings. Calibration takes over every display for a
+few seconds.
 
 ## Principles
 
@@ -21,8 +23,10 @@ needs day to day fits in one small panel.
 |---|---|---|
 | On | `eye` | Template image, so it follows the menu bar's appearance |
 | Off | `eye.slash` | Same weight and size, so the menu bar doesn't jump |
+| Needs attention | `eye.trianglebadge.exclamationmark` | Not set up, camera blocked, not calibrated, or too dark |
 
-The icon is the only thing Glazer shows in the menu bar, with no text beside it.
+The icon is the only thing Glazer shows in the menu bar, with no text beside it. Every
+state and its copy is defined in one place, `ConditionPresentation`.
 
 ## Panel
 
@@ -57,8 +61,19 @@ Status copy:
 
 | State | Copy |
 |---|---|
-| On | Following your gaze |
+| Following | Following your gaze |
+| No face in view | Looking for you |
+| Too dark | Too dark to see you |
+| Face lock, someone else | Face not recognised |
+| One display | Waiting for a second display |
 | Off | Off. Camera is not in use |
+
+### Callout
+
+When Glazer can't run because of something the person can fix, a card appears under the
+header: one sentence on what's needed and one small prominent button that fixes it
+("Set Up…", "Open Settings…", "Calibrate…"). It uses `.quinary` fill with a radius of
+8 pt. There is never more than one callout.
 
 ### Display map
 
@@ -85,6 +100,56 @@ Rows look like `NSMenu` items: 22 pt tall, 13 pt system font, with a rounded sel
 highlight (radius 5 pt, accent colour, white text) on hover. A keyboard shortcut is shown
 trailing in `.secondary`. Rows only appear when they work. Glazer doesn't show
 placeholders for features that haven't shipped yet.
+
+Rows, in order: Turn On/Off (⌥⌘G), Calibrate Displays…, Settings… (⌘,), then after a
+divider, About Glazer and Quit Glazer (⌘Q).
+
+## Setup window
+
+Shown on first launch, 560 × 460 pt with a hidden title bar. One idea per page:
+welcome, camera, Accessibility, calibration, face lock, done.
+
+- Each page has a 64 pt rounded-square badge in the accent colour with a white symbol,
+  a 24 pt semibold title and one or two sentences in `.secondary`.
+- Below that, at most one action: a large button, or a green confirmation once it's done.
+- The footer has step dots on the left (the current one stretches into a pill), and Back
+  and the primary button on the right.
+- Optional steps say "Skip" or "Not Now" rather than disabling Continue. The camera is the
+  only step that can't be skipped.
+
+## Calibration
+
+Calibration covers every display with a dark, blurred overlay, so nothing else competes
+for attention.
+
+- The display being calibrated shows "Display 1 of 2", "Look at this display", a white
+  dot with a slow pulse, and a ring that fills in the accent colour as poses are
+  recorded.
+- The other displays dim further and show "Look at Built-in" with an arrow pointing
+  toward it.
+- Problems appear as a single yellow line under the target: can't see you, too dark,
+  hold still. They never interrupt the flow.
+- The result appears on the display with the menu bar: a green check and "Done", or an
+  explanation and "Try Again".
+- Esc cancels at any point.
+
+## Face lock setup
+
+A 440 × 540 pt window modelled on Face ID setup.
+
+- A 220 pt circle shows a mirrored live preview while scanning, and a `faceid` symbol
+  before and after.
+- 72 tick marks ring the circle and fill in the accent colour as the scan progresses.
+- One instruction line updates as the scan goes: look at the camera, move closer, only
+  one person, keep turning.
+- Touch ID or the login password is asked for before the camera starts, and again before
+  the face is deleted.
+
+## Settings
+
+A standard Settings window with grouped forms and five tabs: General, Displays, Face
+Lock, Privacy and Diagnostics. Diagnostics shows live readings (faces in view, head yaw and
+pitch, brightness, match score) so people can see what Glazer sees, without any image.
 
 ## Global shortcut
 

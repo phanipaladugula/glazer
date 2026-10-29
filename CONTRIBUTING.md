@@ -5,7 +5,7 @@ how changes get merged.
 
 ## Setup
 
-You need macOS 14 or later and Swift 6.2 or later. Xcode works, but isn't required:
+You need macOS 15 or later and Swift 6.2 or later. Xcode works, but isn't required:
 
 ```sh
 xcode-select --install   # Command Line Tools, if you don't have Xcode
@@ -24,7 +24,7 @@ Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) first. In short:
 - **Decisions go in `GlazerCore`**, as plain types with unit tests. If logic needs a
   camera, a screen or AppKit to be tested, it's in the wrong place.
 - **macOS APIs go in `GlazerSystem`**, in small adapters with as little logic as possible.
-- **UI goes in `GlazerApp`**, and follows [the design spec](docs/design/menu-bar.md).
+- **UI goes in `GlazerApp`**, and follows [the design spec](docs/design/README.md).
   Visible changes to the UI should update the spec too.
 
 ## Standards
@@ -44,6 +44,10 @@ Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) first. In short:
 - Branch from `main`, and open a pull request. CI must pass before merging.
 - Large changes start as an issue, so the approach can be agreed before the code is
   written.
+
+## Releases
+
+Maintainers release by pushing a version tag. See [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Design decisions
 
