@@ -72,10 +72,10 @@ struct SetupView: View {
             SetupPage(
                 symbol: nil, title: "Welcome to Glazer",
                 message: "Look at another display and start typing. Glazer moves the pointer and "
-                    + "keyboard focus to where you're looking, or wherever a double-press of a key sends it."
+                    + "keyboard focus to where you're looking, or to the next display with a shortcut."
             ) {
                 VStack(alignment: .leading, spacing: 14) {
-                    Feature(symbol: "rectangle.on.rectangle", text: "Follows where you look, or a key you double-press")
+                    Feature(symbol: "rectangle.on.rectangle", text: "Follows where you look, or a keyboard shortcut")
                     Feature(symbol: "lock.laptopcomputer", text: "Runs entirely on this Mac. No network, ever")
                     Feature(symbol: "video.slash", text: "Never records or saves video")
                 }
@@ -91,15 +91,12 @@ struct SetupView: View {
                             model.switchingMethod = method
                         }
                     }
-                    if model.switchingMethod.usesKey {
-                        Picker("Double-press", selection: $model.switchKey) {
-                            ForEach(SwitchKey.allCases, id: \.self) { key in
-                                Text(key.name).tag(key)
-                            }
+                    if model.switchingMethod.usesShortcut {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text("Next display")
+                            ShortcutRecorder(model: model)
                         }
-                        .fixedSize()
                         .padding(.top, 6)
-                        .help(model.switchKey.caveat ?? "")
                     }
                 }
                 .frame(maxWidth: 420)
@@ -123,8 +120,8 @@ struct SetupView: View {
                 message: model.switchingMethod.usesCamera
                     ? "Glazer needs this to move your typing to the display you look at, and to wait "
                         + "while you type. Until it's allowed, Glazer stays paused."
-                    : "Glazer needs this to notice your double-press in any app, and to move your typing "
-                        + "to the next display. It only sees which modifier keys go up and down."
+                    : "Glazer needs this to move your typing to the next display when you press your "
+                        + "shortcut. It never sees what you type."
             ) {
                 PermissionStatus(
                     isGranted: model.hasAccessibilityAccess,
@@ -182,8 +179,8 @@ struct SetupView: View {
 
     private var doneMessage: String {
         let toggle = "Press \(model.toggleShortcut.displayString) anywhere to turn it on or off."
-        guard model.switchingMethod.usesKey else { return "Glazer lives in the menu bar. \(toggle)" }
-        return "Double-press \(model.switchKey.shortName) to jump to the next display. Glazer lives in the "
+        guard model.switchingMethod.usesShortcut else { return "Glazer lives in the menu bar. \(toggle)" }
+        return "Press \(model.switchShortcut.displayString) to jump to the next display. Glazer lives in the "
             + "menu bar. \(toggle)"
     }
 

@@ -28,7 +28,7 @@ Look at the other screen and start typing. Glazer moves the pointer and keyboard
 - [Privacy](#privacy)
 - [Install](#install)
 - [Getting started](#getting-started)
-- [Switch with a key](#switch-with-a-key)
+- [Switch with a shortcut](#switch-with-a-shortcut)
 - [Face lock](#face-lock)
 - [Troubleshooting](#troubleshooting)
 - [Roadmap](#roadmap)
@@ -41,7 +41,7 @@ across and clicking into the right window, dozens of times a day. Glazer removes
 step. Turn to the other display and keep typing.
 
 - **Hands-free focus switching.** The pointer and keyboard focus go to the window you were last using on the display you face.
-- **Or switch with a key.** Prefer no camera? Double-press **fn** (or a right-hand modifier) to jump to the next display. Use it alone, or alongside the camera.
+- **Or switch with a shortcut.** Prefer no camera? Press **⌃⌥⌘Space**, or a shortcut you choose, to jump to the next display. Use it alone, or alongside the camera.
 - **Follows only you.** It ignores people walking past or sitting behind you. With face lock on, it follows only your face.
 - **Ignores glances.** A switch happens only after you've faced the other display for a moment, and looking down at your phone changes nothing.
 - **Never switches while you type.** Keep typing while you look at notes or talk to someone, and your words stay put. Pause for a second while facing the other display, and it's ready for you.
@@ -134,9 +134,9 @@ curl -fsSL https://raw.githubusercontent.com/phanipaladugula/glazer/main/install
 
 The first time Glazer opens, a short setup walks you through:
 
-1. **How to switch.** Where you look, double-pressing a key, or both.
+1. **How to switch.** Where you look, a keyboard shortcut, or both.
 2. **Camera.** Allow access so Glazer can see which way you're facing. *(Skipped when you switch by key only.)*
-3. **Accessibility.** Allow it so Glazer can bring the right window to the front, and hear your double-press in any app.
+3. **Accessibility.** Allow it so Glazer can bring the right window to the front of the display you switch to.
 4. **Calibration.** Look at and click the dot at the centre and corners of each display, about half a minute in all.
 5. **Face lock** *(optional).* Glazer learns your face, so it follows only you.
 
@@ -145,7 +145,7 @@ After that, Glazer lives in the menu bar.
 | Action | How |
 |---|---|
 | Turn Glazer on or off | Click the eye in the menu bar, or press **⌥⌘G** anywhere |
-| Jump to the next display | Double-press **fn** (when switching by key is on) |
+| Jump to the next display | **⌃⌥⌘Space** (when switching by shortcut is on) |
 | Choose camera, key or both | **Settings › General › Switch displays by** |
 | Recalibrate after moving a display | Menu bar › **Calibrate Displays…** |
 | Change how quickly it switches | **Settings › General › Switch after** |
@@ -153,19 +153,21 @@ After that, Glazer lives in the menu bar.
 
 <br clear="right">
 
-## Switch with a key
+## Switch with a shortcut
 
 Not every moment suits a camera: a dark room, a video call, or simply preferring not to
 use one. In **Settings › General**, choose to switch displays by:
 
 - **Where I look:** the camera follows which display you face.
-- **Double-pressing a key:** each double-press moves the pointer and keyboard to the next display, top to bottom, then left to right. The camera stays off.
-- **Both:** Glazer follows where you look, and a double-press jumps straight away. The key keeps working if the camera can't see you.
+- **A keyboard shortcut:** each press moves the pointer and keyboard to the next display, top to bottom, then left to right. The camera stays off.
+- **Both:** Glazer follows where you look, and the shortcut jumps straight away. It keeps working if the camera can't see you.
 
-The key is **fn / 🌐** by default, or right ⌥ Option, right ⌘ Command, right ⌃ Control or
-right ⇧ Shift. Pressing the key with any other key, or holding it, never counts. Glazer
-sees only which modifier keys go up and down, never what you type. If macOS Dictation is
-set to start on a double-press of fn, pick another key.
+The shortcut is **⌃⌥⌘Space** by default. To change it, click it in Settings and press the
+keys you want: a letter, number, arrow or Space with at least two of ⌃, ⌥ and ⌘, so apps
+keep their own shortcuts. Glazer checks macOS's shortcuts and other apps' before using
+yours, and tells you if one is taken rather than having one key press do two things.
+macOS tells Glazer only when your shortcut is pressed; Glazer never watches the keyboard
+for it.
 
 ## Face lock
 
@@ -273,7 +275,8 @@ The uninstall command does all of this, and removes the face lock item too.
 - [x] Menu bar app, display map and global shortcut
 - [x] Head direction from the camera, following only the person at the Mac
 - [x] Calibration at the centre and corners of each display, and moving the pointer and keyboard focus
-- [x] Switching by double-pressing a key, with or without the camera
+- [x] Switching with a keyboard shortcut, with or without the camera
+- [x] Releases signed with Glazer's own certificate, so updates keep their permissions
 - [x] Low-light detection
 - [x] Face lock, stored in the login keychain, set up and deleted with Touch ID
 - [x] One-line install from GitHub releases, universal for Apple silicon and Intel

@@ -6,6 +6,26 @@ All notable changes to Glazer are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-29
+
+### Changed
+
+- Switching by key now uses a keyboard shortcut, **⌃⌥⌘Space** by default, instead of a
+  double-pressed modifier, which macOS and other apps also use (fn twice starts
+  Dictation, for example). Click the shortcut in Setup or Settings and press keys to
+  record another. Glazer refuses a shortcut that macOS or another app already uses, and
+  says so, so one key press never does two things. If you switched by double-press, you
+  now switch by shortcut.
+- Glazer no longer watches the modifier keys at all. macOS tells it only when the
+  shortcut is pressed.
+
+### Security
+
+- Releases are signed with Glazer's own certificate rather than ad hoc, so macOS
+  recognises updates as the same app: they keep camera and Accessibility permissions, and
+  the face lock Keychain item stays readable without asking. Updating from an earlier
+  version asks once more.
+
 ## [0.2.0] - 2026-10-29
 
 ### Added
@@ -133,7 +153,8 @@ All notable changes to Glazer are recorded here. The format follows
 
 - Requires macOS 15 Sequoia or later.
 
-[Unreleased]: https://github.com/phanipaladugula/glazer/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/phanipaladugula/glazer/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/phanipaladugula/glazer/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/phanipaladugula/glazer/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/phanipaladugula/glazer/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/phanipaladugula/glazer/releases/tag/v0.1.0

@@ -19,8 +19,8 @@ final class AppModel {
         case calibrating
         case enrollingFace
         case running(GazeEngine.Status)
-        /// Switching by key only: waiting for the user to double-press `SwitchKey`.
-        case listening(SwitchKey)
+        /// Switching by shortcut only: waiting for the user to press it.
+        case listening(KeyboardShortcut)
     }
 
     /// Something that stops Glazer from following, and what the user can do about it.
@@ -36,6 +36,8 @@ final class AppModel {
         /// Without Accessibility, Glazer can move the pointer but not the keyboard, which
         /// sends typing to the display the user isn't looking at. So it pauses instead.
         case accessibilityNeeded
+        /// Switching by shortcut only, and macOS or another app already uses the shortcut.
+        case shortcutUnavailable
     }
 
     // MARK: Settings
@@ -56,12 +58,22 @@ final class AppModel {
         }
     }
 
-    /// The key double-pressed to switch displays.
-    var switchKey: SwitchKey {
+    /// The shortcut that moves to the next display.
+    var switchShortcut: KeyboardShortcut {
         didSet {
-            preferences.switchKey = switchKey
+            preferences.switchShortcut = switchShortcut
             refresh()
         }
+    }
+
+    /// Why the switch shortcut couldn't be registered, such as macOS or another app using
+    /// it. `nil` when it's registered, or not needed.
+    private(set) var switchShortcutError: HotKey.Error?
+
+    /// While the user records a new shortcut, the current one is released, so pressing it
+    /// reaches the recorder instead of switching displays.
+    var isRecordingShortcut = false {
+        didSet { refresh() }
     }
 
     /// How long the user must face another display before focus moves, in seconds.
@@ -131,9 +143,9 @@ final class AppModel {
     /// Moves the pointer and keyboard. Shared by the camera and the switch key, so both
     /// remember the same pointer position on each display.
     @ObservationIgnored private let focus: FocusController
-    @ObservationIgnored private let doublePress = DoublePressMonitor()
-    /// The key the double-press monitor listens for, while it's running.
-    @ObservationIgnored private var listeningKey: SwitchKey?
+    @ObservationIgnored private var switchHotKey: HotKey?
+    /// The shortcut ``switchHotKey`` was registered for.
+    @ObservationIgnored private var registeredShortcut: KeyboardShortcut?
     @ObservationIgnored private var toggleHotKey: HotKey?
     @ObservationIgnored private var session: SessionMonitor?
     @ObservationIgnored private var permissionTimer: Timer?
@@ -148,7 +160,7 @@ final class AppModel {
         gaze = GazeController(focus: focus)
         isEnabled = preferences.isEnabled
         switchingMethod = preferences.switchingMethod
-        switchKey = preferences.switchKey
+        switchShortcut = preferences.switchShortcut
         switchDelay = preferences.switchDelay
         hasCompletedSetup = preferences.hasCompletedSetup
         calibration = preferences.calibration
@@ -179,7 +191,7 @@ final class AppModel {
         if gaze.mode == .enrolling { return .enrollingFace }
         if !isEnabled { return .off }
         if let attention { return .attention(attention) }
-        if !switchingMethod.usesCamera { return .listening(switchKey) }
+        if !switchingMethod.usesCamera { return .listening(switchShortcut) }
         return .running(gaze.output?.status ?? .searching)
     }
 
@@ -194,14 +206,15 @@ final class AppModel {
         if usesCamera, calibration?.covers(displays) != true { return .calibrationNeeded }
         if usesCamera, faceLock == .unreadable { return .faceLockUnavailable }
         if !hasAccessibilityAccess { return .accessibilityNeeded }
+        if !usesCamera, switchShortcutError != nil { return .shortcutUnavailable }
         return nil
     }
 
-    /// Whether the switch key is listened for. It doesn't wait on the camera: in
-    /// ``SwitchingMethod/both`` the key keeps working while the camera can't.
-    private var shouldListenForKey: Bool {
-        isEnabled && hasCompletedSetup && switchingMethod.usesKey && hasAccessibilityAccess
-            && displays.count >= 2 && !isCalibrating && session?.isActive != false
+    /// Whether the switch shortcut is registered. It doesn't wait on the camera: in
+    /// ``SwitchingMethod/both`` the shortcut keeps working while the camera can't.
+    private var shouldRegisterShortcut: Bool {
+        isEnabled && hasCompletedSetup && switchingMethod.usesShortcut && hasAccessibilityAccess
+            && displays.count >= 2 && !isCalibrating && !isRecordingShortcut && session?.isActive != false
     }
 
     var displays: [Display] {
@@ -235,11 +248,6 @@ final class AppModel {
         let gainedAccessibility = accessibility && !hasAccessibilityAccess
         cameraAccess = camera
         hasAccessibilityAccess = accessibility
-        if gainedAccessibility {
-            // macOS only delivers other apps' keys to monitors added while Glazer is
-            // trusted, so the key monitor starts again.
-            stopListeningForKey()
-        }
         refresh()
         if gainedAccessibility {
             gaze.restartTypingMonitor()
@@ -252,7 +260,7 @@ final class AppModel {
     }
 
     /// Moves the pointer and keyboard to the next display, in reading order. The switch
-    /// key calls it.
+    /// shortcut calls it.
     func switchToNextDisplay() {
         let current = gaze.focusedDisplay ?? displayMonitor.pointerDisplayID
         guard let target = displays.display(after: current)?.id else { return }
@@ -280,7 +288,7 @@ final class AppModel {
         gaze.stop()
         loadFaceTemplateIfNeeded()
         isCalibrating = true
-        stopListeningForKey()
+        unregisterShortcut()
         calibrationCoordinator.start(displays: displays, verifier: verifier) { [weak self] calibration in
             guard let self else { return }
             isCalibrating = false
@@ -372,7 +380,7 @@ final class AppModel {
     /// retries a camera that failed before.
     private func refresh() {
         guard !isCalibrating, gaze.mode != .enrolling else { return }
-        updateKeyListening()
+        updateShortcut()
         gaze.clearCameraFailure()
 
         // Nobody is at the Mac: the screen is locked or asleep, or another user is in front.
@@ -392,21 +400,30 @@ final class AppModel {
         }
     }
 
-    private func updateKeyListening() {
-        guard shouldListenForKey else {
-            stopListeningForKey()
+    /// Registers the switch shortcut while it's needed, and releases it otherwise.
+    private func updateShortcut() {
+        guard shouldRegisterShortcut else {
+            unregisterShortcut()
             return
         }
-        guard listeningKey != switchKey else { return }
-        listeningKey = switchKey
-        doublePress.start(key: switchKey) { [weak self] in
-            self?.switchToNextDisplay()
+        guard registeredShortcut != switchShortcut else { return }
+        unregisterShortcut()
+        do {
+            // Exclusive: a shortcut macOS or another app also uses would do two things.
+            switchHotKey = try HotKey(switchShortcut, exclusive: true) { [weak self] in
+                self?.switchToNextDisplay()
+            }
+            registeredShortcut = switchShortcut
+        } catch {
+            switchShortcutError = error as? HotKey.Error ?? .registrationFailed(0)
+            Logger.app.error("Could not register \(self.switchShortcut.displayString): \(error)")
         }
     }
 
-    private func stopListeningForKey() {
-        doublePress.stop()
-        listeningKey = nil
+    private func unregisterShortcut() {
+        switchHotKey = nil
+        registeredShortcut = nil
+        switchShortcutError = nil
     }
 
     private func observeDisplays() {

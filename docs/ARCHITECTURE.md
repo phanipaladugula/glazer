@@ -59,11 +59,11 @@ GlazerCore     Pure decision logic and value types. No AppKit, no hardware
 7. **FocusController** focuses the frontmost window on the target display and returns the
    pointer to where it was there.
 
-Switching by key skips the camera entirely: **DoublePressMonitor** watches the chosen
-modifier key, **DoublePressDetector** decides when two quick taps make a double-press, and
-the app moves focus to the next display in reading order through the same
-FocusController ([ADR 0006](adr/0006-switch-with-a-double-pressed-key.md)). With both on,
-a double-press also tells the engine the user moved focus themselves, so the camera
+Switching by shortcut skips the camera entirely: the app registers the shortcut with
+**HotKey**, exclusively, so one press never does two things, and moves focus to the next
+display in reading order through the same FocusController
+([ADR 0008](adr/0008-switch-with-a-keyboard-shortcut.md)). With both on, the shortcut also
+tells the engine the user moved focus themselves, so the camera
 doesn't pull it straight back.
 
 ## Modules
@@ -75,12 +75,12 @@ doesn't pull it straight back.
 | `Vision/` | `HeadPose`, `Frame`, `DetectedFace` |
 | `Tracking/` | `UserTracker`, `OneEuroFilter`, `HeadPoseFilter`, `LightMeter` |
 | `Calibration/` | `Calibration` (centre and corner poses per display), `PoseRegion`, `CalibrationRecorder`, `DisplayClassifier`, `AxisWeights` |
-| `Switching/` | `SwitchingMethod`, `SwitchKey`, `DoublePressDetector` |
+| `Switching/` | `SwitchingMethod` |
 | `Identity/` | `FaceSignature`, `FaceTemplate` (with its learned threshold), `IdentityVerifier`, `FaceEnrollment` |
 | `Engine/` | `GazeEngine`, which ties the pipeline together, and `TypingGuard`, which holds switches back while the user types |
 | `Display/` | `Display`, `DisplayLayout`, lookup by point, reading order |
 | `Settings/` | `Preferences`: on/off, setup state, switching method and key, switch delay, calibration |
-| `Models/` | `KeyboardShortcut` |
+| `Models/` | `KeyboardShortcut`, with the rules for a switch shortcut |
 
 ### GlazerSystem
 
@@ -89,9 +89,9 @@ doesn't pull it straight back.
 | `Camera/` | `CameraFeed`, `CameraAccess` |
 | `Vision/` | `FrameAnalyzer` |
 | `Security/` | `FaceVault` (Keychain), `OwnerAuthentication` (Touch ID or password) |
-| `Focus/` | `FocusController`, `TypingMonitor`, `DoublePressMonitor`, `AccessibilityAccess` |
+| `Focus/` | `FocusController`, `TypingMonitor`, `AccessibilityAccess` |
 | `Display/` | `DisplayMonitor` |
-| `HotKey/` | `HotKey`, a global shortcut through Carbon |
+| `HotKey/` | `HotKey`, a global shortcut through Carbon that can refuse one macOS or another app uses; `KeyCodes` |
 | `Login/` | `LaunchAtLogin` |
 | `Support/` | `SystemSettings`, which opens Privacy & Security panes; `SessionMonitor`, which reports when the screen locks, sleeps or the user switches out |
 
@@ -99,7 +99,7 @@ doesn't pull it straight back.
 
 | Area | Role |
 |---|---|
-| `AppModel.swift` | App state. Decides when the camera runs and when the switch key is listened for, and owns permissions, calibration and face lock |
+| `AppModel.swift` | App state. Decides when the camera runs and when the switch shortcut is registered, and owns permissions, calibration and face lock |
 | `Gaze/` | `GazeController`: runs the camera and the engine, and moves focus |
 | `Calibration/` | Full-screen overlays with the dots to click, and the calibration session |
 | `FaceLock/` | Face lock setup, with a live camera preview |

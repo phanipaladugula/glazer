@@ -111,40 +111,34 @@ struct KeyboardTests {
     }
 }
 
-@Suite("DoublePressMonitor key mapping")
+@Suite("Switch shortcut")
 @MainActor
-struct DoublePressMonitorKeyTests {
-    @Test("Each key has the key codes macOS reports for it")
+struct SwitchShortcutTests {
+    @Test("Every key a shortcut can use has a key code, and back")
     func keyCodes() {
-        #expect(DoublePressMonitor.keyCodes(for: .function).contains(kVK_Function))
-        #expect(DoublePressMonitor.keyCodes(for: .rightOption) == [kVK_RightOption])
-        #expect(DoublePressMonitor.keyCodes(for: .rightCommand) == [kVK_RightCommand])
-        #expect(DoublePressMonitor.keyCodes(for: .rightControl) == [kVK_RightControl])
-        #expect(DoublePressMonitor.keyCodes(for: .rightShift) == [kVK_RightShift])
+        for key in KeyboardShortcut.supportedKeys {
+            let code = KeyCodes.code(for: key)
+            #expect(code != nil)
+            #expect(code.flatMap { KeyCodes.key(for: UInt16($0)) } == key)
+        }
+        #expect(KeyCodes.code(for: "é") == nil)
+        #expect(KeyCodes.key(for: UInt16(kVK_F5)) == nil)
     }
 
-    @Test("A right-hand modifier is down only when its own device bit is set")
-    func rightHandBits() {
-        let rightOption = NSEvent.ModifierFlags(
-            rawValue: NSEvent.ModifierFlags.option.rawValue | UInt(NX_DEVICERALTKEYMASK))
-        let leftOption = NSEvent.ModifierFlags(
-            rawValue: NSEvent.ModifierFlags.option.rawValue | UInt(NX_DEVICELALTKEYMASK))
-        #expect(DoublePressMonitor.isDown(.rightOption, flags: rightOption))
-        #expect(!DoublePressMonitor.isDown(.rightOption, flags: leftOption))
-        #expect(!DoublePressMonitor.isDown(.rightOption, flags: []))
+    @Test("The default shortcut isn't one of macOS's own")
+    func defaultIsFree() throws {
+        let code = try #require(KeyCodes.code(for: KeyboardShortcut.nextDisplay.key))
+        #expect(!HotKey.isReservedBySystem(keyCode: code, modifiers: KeyboardShortcut.nextDisplay.modifiers))
     }
 
-    @Test("fn is down when the function flag is set")
-    func function() {
-        #expect(DoublePressMonitor.isDown(.function, flags: .function))
-        #expect(!DoublePressMonitor.isDown(.function, flags: []))
-    }
-
-    @Test("Starting and stopping leaves no monitor behind")
-    func startStop() {
-        let monitor = DoublePressMonitor()
-        monitor.start(key: .rightOption) {}
-        monitor.stop()
-        #expect(!monitor.isRunning)
+    @Test("An exclusive shortcut can't be registered twice")
+    func exclusive() throws {
+        _ = NSApplication.shared
+        let shortcut = KeyboardShortcut(key: "8", modifiers: [.control, .option, .shift, .command])
+        let first = try HotKey(shortcut, exclusive: true) {}
+        #expect(throws: HotKey.Error.takenByAnotherApp) {
+            _ = try HotKey(shortcut, exclusive: true) {}
+        }
+        _ = first
     }
 }

@@ -64,7 +64,9 @@ Developer ID and notarisation give.
 
 3. Pin the certificate in `install.sh` (`expected_signer`) to the fingerprint in
    `~/Glazer-Signing/Glazer-Signing.sha1`, so the installer rejects anything not signed
-   with it.
+   with it. Do this only **after** the first signed release is published: users run the
+   installer from `main`, and a pin merged earlier rejects the latest release until a
+   signed one replaces it.
 
 4. Optionally, sign your own builds with it too, so they share the release's identity:
 

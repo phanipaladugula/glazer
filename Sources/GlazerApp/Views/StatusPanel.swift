@@ -93,6 +93,8 @@ struct StatusPanel: View {
         case .openAccessibilitySettings:
             AccessibilityAccess.request()
             SystemSettings.open(.accessibility)
+        case .openSettings:
+            showSettings()
         }
     }
 
