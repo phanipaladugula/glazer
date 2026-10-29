@@ -48,6 +48,14 @@ final class AppModel {
         }
     }
 
+    /// When keyboard focus follows the user's gaze.
+    var switchMode: SwitchMode {
+        didSet {
+            preferences.switchMode = switchMode
+            refresh()
+        }
+    }
+
     var launchesAtLogin: Bool {
         didSet { LaunchAtLogin.setEnabled(launchesAtLogin) }
     }
@@ -91,6 +99,7 @@ final class AppModel {
         self.vault = vault
         isEnabled = preferences.isEnabled
         switchDelay = preferences.switchDelay
+        switchMode = preferences.switchMode
         hasCompletedSetup = preferences.hasCompletedSetup
         calibration = preferences.calibration
         launchesAtLogin = LaunchAtLogin.isEnabled
@@ -233,7 +242,9 @@ final class AppModel {
         guard !isCalibrating, gaze.mode != .enrolling else { return }
 
         if isEnabled, attention == nil, let calibration {
-            gaze.follow(displays: displays, calibration: calibration, verifier: verifier, switchDelay: switchDelay)
+            gaze.follow(
+                displays: displays, calibration: calibration, verifier: verifier, switchDelay: switchDelay,
+                switchMode: switchMode)
         } else {
             gaze.stop()
         }
