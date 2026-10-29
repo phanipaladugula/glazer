@@ -6,6 +6,8 @@ All notable changes to Glazer are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-29
+
 ### Added
 
 - An app icon, shown in Finder, the Dock, Launchpad, About Glazer and the setup window.
@@ -34,5 +36,6 @@ All notable changes to Glazer are recorded here. The format follows
 
 - Requires macOS 15 Sequoia or later.
 
-[Unreleased]: https://github.com/phanipaladugula/glazer/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/phanipaladugula/glazer/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/phanipaladugula/glazer/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/phanipaladugula/glazer/releases/tag/v0.1.0
