@@ -16,4 +16,31 @@ struct PreferencesTests {
 
         #expect(Preferences(store: store).isEnabled == false)
     }
+
+    @Test("Setup starts incomplete")
+    func setupIncomplete() {
+        #expect(!Preferences(store: MemoryStore()).hasCompletedSetup)
+    }
+
+    @Test("The switch delay defaults to half a second")
+    func defaultDelay() {
+        #expect(Preferences(store: MemoryStore()).switchDelay == 0.5)
+    }
+
+    @Test("The switch delay is clamped to the offered range", arguments: [(0.0, 0.2), (9.0, 1.5), (0.8, 0.8)])
+    func clampedDelay(stored: Double, expected: Double) {
+        let store = MemoryStore()
+        store.set(stored, forKey: "switchDelay")
+        #expect(Preferences(store: store).switchDelay == expected)
+    }
+
+    @Test("A calibration survives a round trip, and can be cleared")
+    func calibration() {
+        let store = MemoryStore()
+        Preferences(store: store).calibration = twoDisplayCalibration
+        #expect(Preferences(store: store).calibration == twoDisplayCalibration)
+
+        Preferences(store: store).calibration = nil
+        #expect(Preferences(store: store).calibration == nil)
+    }
 }
