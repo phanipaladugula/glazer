@@ -7,8 +7,12 @@ import GlazerCore
 /// Accessibility permission. The shortcut is unregistered when the object is released.
 @MainActor
 public final class HotKey {
-    public enum Error: Swift.Error {
+    public enum Error: Swift.Error, Equatable {
         case unsupportedKey(Character)
+        /// macOS itself uses the shortcut, such as for Spotlight or Mission Control.
+        case reservedBySystem
+        /// Another app has already registered the shortcut.
+        case takenByAnotherApp
         case registrationFailed(OSStatus)
     }
 
@@ -21,9 +25,16 @@ public final class HotKey {
     nonisolated(unsafe) private var reference: EventHotKeyRef?
 
     /// Registers `shortcut` and calls `action` on the main thread each time it is pressed.
-    public init(_ shortcut: KeyboardShortcut, action: @escaping () -> Void) throws {
-        guard let keyCode = Self.keyCode(for: shortcut.key) else {
+    ///
+    /// - Parameter exclusive: Fail with ``Error/reservedBySystem`` or
+    ///   ``Error/takenByAnotherApp`` rather than share the shortcut with macOS or another
+    ///   app, where one press would do two things.
+    public init(_ shortcut: KeyboardShortcut, exclusive: Bool = false, action: @escaping () -> Void) throws {
+        guard let keyCode = KeyCodes.code(for: shortcut.key) else {
             throw Error.unsupportedKey(shortcut.key)
+        }
+        if exclusive, Self.isReservedBySystem(keyCode: keyCode, modifiers: shortcut.modifiers) {
+            throw Error.reservedBySystem
         }
         try Self.installEventHandlerIfNeeded()
 
@@ -36,9 +47,10 @@ public final class HotKey {
             Self.carbonModifiers(for: shortcut.modifiers),
             hotKeyID,
             GetApplicationEventTarget(),
-            0,
+            exclusive ? OptionBits(kEventHotKeyExclusive) : 0,
             &reference
         )
+        guard status != eventHotKeyExistsErr else { throw Error.takenByAnotherApp }
         guard status == noErr else { throw Error.registrationFailed(status) }
         Self.handlers[id] = action
     }
@@ -99,18 +111,23 @@ public final class HotKey {
         return UInt32(flags)
     }
 
-    /// Virtual key codes for the ANSI letter keys. These are physical positions, so on
-    /// other keyboard layouts the shortcut stays on the same key.
-    private static func keyCode(for key: Character) -> UInt32? {
-        let codes: [Character: Int] = [
-            "A": kVK_ANSI_A, "B": kVK_ANSI_B, "C": kVK_ANSI_C, "D": kVK_ANSI_D,
-            "E": kVK_ANSI_E, "F": kVK_ANSI_F, "G": kVK_ANSI_G, "H": kVK_ANSI_H,
-            "I": kVK_ANSI_I, "J": kVK_ANSI_J, "K": kVK_ANSI_K, "L": kVK_ANSI_L,
-            "M": kVK_ANSI_M, "N": kVK_ANSI_N, "O": kVK_ANSI_O, "P": kVK_ANSI_P,
-            "Q": kVK_ANSI_Q, "R": kVK_ANSI_R, "S": kVK_ANSI_S, "T": kVK_ANSI_T,
-            "U": kVK_ANSI_U, "V": kVK_ANSI_V, "W": kVK_ANSI_W, "X": kVK_ANSI_X,
-            "Y": kVK_ANSI_Y, "Z": kVK_ANSI_Z,
-        ]
-        return codes[key].map(UInt32.init)
+    /// Whether one of macOS's own shortcuts that is switched on, such as Spotlight's or
+    /// Mission Control's, uses this key and these modifiers.
+    static func isReservedBySystem(keyCode: UInt32, modifiers: KeyboardShortcut.Modifiers) -> Bool {
+        var unmanaged: Unmanaged<CFArray>?
+        guard CopySymbolicHotKeys(&unmanaged) == noErr,
+            let hotKeys = unmanaged?.takeRetainedValue() as? [[String: Any]]
+        else { return false }
+        let wanted = carbonModifiers(for: modifiers)
+        // Symbolic hot keys can carry extra flags, such as for the function key; only the
+        // four modifiers a shortcut can have are compared.
+        let mask = UInt32(controlKey | optionKey | shiftKey | cmdKey)
+        return hotKeys.contains { hotKey in
+            guard hotKey[kHISymbolicHotKeyEnabled] as? Bool == true,
+                let code = hotKey[kHISymbolicHotKeyCode] as? Int,
+                let flags = hotKey[kHISymbolicHotKeyModifiers] as? Int
+            else { return false }
+            return UInt32(code) == keyCode && UInt32(flags) & mask == wanted
+        }
     }
 }
