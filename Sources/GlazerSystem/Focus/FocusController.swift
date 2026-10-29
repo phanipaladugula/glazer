@@ -110,7 +110,18 @@ public final class FocusController {
             )
             return false
         }
-        return Self.isFrontmost(application)
+        return Self.becomesFrontmost(application)
+    }
+
+    /// Whether `application` reports itself frontmost within a moment. Switching apps
+    /// takes macOS a few milliseconds after it accepts the request, so reading it back
+    /// straight away often still says no, which made focus look as if it hadn't moved.
+    private static func becomesFrontmost(_ application: AXUIElement) -> Bool {
+        for _ in 0..<25 {
+            if isFrontmost(application) { return true }
+            usleep(10_000)
+        }
+        return false
     }
 
     /// Whether `application` reports itself frontmost, read back through Accessibility.

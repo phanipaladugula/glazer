@@ -41,6 +41,27 @@ public enum PasteTarget {
         return nil
     }
 
+    /// The text box that has the keyboard's focus, if it's within `bounds`, in Core
+    /// Graphics global coordinates, such as a display's: a short description, or `nil`.
+    /// A paste with ⌘V alone lands there, wherever the pointer is.
+    public static func focusedTextBox(in bounds: CGRect) -> String? {
+        // Asked of the frontmost app: asking the whole system fails for some apps, such as
+        // Electron ones.
+        guard AccessibilityAccess.isGranted,
+            let frontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+            let focused = AXUIElementCreateApplication(frontmost).element(kAXFocusedUIElementAttribute),
+            let editable = editable(focused),
+            let frame = editable.frame ?? focused.frame,
+            bounds.contains(CGPoint(x: frame.midX, y: frame.midY))
+        else { return nil }
+        return describe(editable)
+    }
+
+    /// Pastes the clipboard where the keyboard's focus is, with ⌘V.
+    public static func pasteAtFocus() {
+        pressCommand(character: "v", fallback: CGKeyCode(kVK_ANSI_V))
+    }
+
     /// Gets ready to paste at `point`, without waiting: asks the app there to describe its
     /// content, so ``find(at:)`` needn't wait for it later. Call it while the user is on
     /// their way to dropping.

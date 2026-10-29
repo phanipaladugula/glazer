@@ -184,7 +184,8 @@ Move a screenshot from one display to another with your hand:
 2. **Carry.** Keep your fist closed and move it towards another display, such as your
    laptop. A thumbnail follows you.
 3. **Drop.** Open your hand. If the pointer is on a text box or message field there, such
-   as a chat or an email, Glazer pastes the screenshot into it. Otherwise it shows the
+   as a chat or an email, Glazer pastes the screenshot into it. If not, but the typing
+   cursor is in a text box on that display, it pastes there. Otherwise it shows the
    screenshot in a window in the middle of that display, with buttons to show it in
    Finder or open it in Preview.
 

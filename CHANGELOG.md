@@ -25,6 +25,10 @@ All notable changes to Glazer are recorded here. The format follows
 
 ### Fixed
 
+- Keyboard focus often seemed not to move to another display, so the pointer stayed
+  behind. macOS takes a few milliseconds to switch apps, and Glazer read the result back
+  before it had; it now waits up to a quarter of a second for it.
+
 - The install script could look frozen for a minute or more. On some networks one of
   GitHub's download servers accepts the connection and then sends nothing, and curl
   waited up to five minutes for it, retrying the same server. Each request now has a short

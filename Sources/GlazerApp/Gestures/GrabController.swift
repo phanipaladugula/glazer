@@ -139,6 +139,14 @@ final class GrabController {
                 )
                 return
             }
+            // The pointer isn't on a text box there, but the typing cursor may be: in the
+            // message box of the chat the user is looking at, say.
+            if let target = PasteTarget.focusedTextBox(in: CGDisplayBounds(display)) {
+                PasteTarget.pasteAtFocus()
+                Logger.gestures.notice(
+                    "Pasted into focused \(target, privacy: .public) on display \(display, privacy: .public)")
+                return
+            }
             let pointerName = pointerDisplay.map { String($0) } ?? "none"
             Logger.gestures.notice(
                 "Showing on display \(display, privacy: .public); pointer on \(pointerName, privacy: .public)")

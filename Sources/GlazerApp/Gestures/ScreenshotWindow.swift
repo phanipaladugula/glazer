@@ -28,7 +28,9 @@ final class ScreenshotWindows {
         window.title = file.deletingPathExtension().lastPathComponent
         window.representedURL = file
         window.isReleasedWhenClosed = false
-        window.collectionBehavior = [.moveToActiveSpace, .fullScreenNone]
+        // Not moveToActiveSpace: the active Space can be on another display, often the one
+        // the screenshot was taken from, and macOS would move the window there.
+        window.collectionBehavior = [.fullScreenNone]
         window.contentView = NSHostingView(
             rootView: ScreenshotView(image: image, file: file) { [weak window] in window?.close() })
         // The frame for the content, set again now the title bar exists, then centred.
@@ -43,9 +45,14 @@ final class ScreenshotWindows {
             }
         }
         windows.append(window)
+        let frame = window.frame
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
+        // Ordering front can let macOS move a window; put it back on its display.
+        if window.frame != frame {
+            window.setFrame(frame, display: true)
+        }
     }
 }
 

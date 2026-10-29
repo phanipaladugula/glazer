@@ -79,7 +79,10 @@ the worst failure, so the design leans towards missing a gesture over inventing 
 - **Drop:** if the pointer is on the drop display and Accessibility says the element under
   it takes typing (a text field or area, or web content with an editable ancestor, never
   a password field), Glazer brings that window forward, clicks at the pointer and
-  presses ⌘V, with V found in the current keyboard layout. Otherwise it shows the
+  presses ⌘V, with V found in the current keyboard layout. Failing that, if the frontmost
+  app's keyboard focus is in a text box on the drop display, it presses ⌘V there, so a
+  chat whose message box has the cursor takes the paste wherever the pointer is.
+  Otherwise it shows the
   screenshot in a window of Glazer's own, in the middle of the drop display, with
   buttons to show it in Finder or open it in Preview. An earlier version opened it in
   Preview and moved Preview's window, which failed in use: Preview reopens a window where
