@@ -124,8 +124,8 @@ placeholders for features that haven't shipped yet.
 Rows, in order: Turn On/Off (⌥⌘G), Calibrate Displays… (only when the camera is used),
 Settings… (⌘,), then after a divider, About Glazer and Quit Glazer (⌘Q).
 
-When switching by key only, the header badge and the menu bar show `keyboard` instead of
-`eye`, and the status reads "Press fn twice to switch". Nothing suggests the camera is
+When switching by shortcut only, the header badge and the menu bar show `keyboard` instead of
+`eye`, and the status reads "Press ⌃⌥⌘Space to switch". Nothing suggests the camera is
 watching when it isn't.
 
 ## Setup window
@@ -135,10 +135,20 @@ welcome, how to switch, camera, Accessibility, calibration, face lock, done. Swi
 key only skips the camera, calibration and face lock pages, and the step dots count only
 the pages that apply.
 
-- "How do you want to switch?" offers three rows: Where I look, Double-pressing a key, and
+- "How do you want to switch?" offers three rows: Where I look, A keyboard shortcut, and
   Both. Each row has a symbol, a title and one line of `.secondary` text; the selected
-  row has a tinted fill, an accent hairline and a filled check. A key picker appears
-  below once a key is involved.
+  row has a tinted fill, an accent hairline and a filled check. The shortcut recorder
+  appears below once a shortcut is involved.
+
+## Shortcut recorder
+
+A bordered button showing the shortcut in the system font, as macOS menus write it
+("⌃⌥⌘Space"). Clicking it reads "Type shortcut…" until the user presses keys; Esc or a
+second click cancels. A refused shortcut keeps the old one and says why in one orange
+`.caption` line under the button: too few modifiers, the on/off shortcut, or used by
+macOS or another app. When the shortcut is unavailable and Glazer switches only by
+shortcut, the panel says "Shortcut unavailable" with Open Settings…, and the menu bar
+shows `exclamationmark.triangle`.
 
 - Each page has a 64 pt rounded-square badge in the accent colour with a white symbol,
   a 24 pt semibold title and one or two sentences in `.secondary`.

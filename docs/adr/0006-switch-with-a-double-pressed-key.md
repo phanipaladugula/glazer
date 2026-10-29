@@ -1,6 +1,6 @@
 # 0006. Switch displays with a double-pressed key
 
-**Status:** Accepted
+**Status:** Superseded by [0008](0008-switch-with-a-keyboard-shortcut.md)
 
 ## Context
 
