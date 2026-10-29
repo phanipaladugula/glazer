@@ -43,4 +43,12 @@ struct PreferencesTests {
         Preferences(store: store).calibration = nil
         #expect(Preferences(store: store).calibration == nil)
     }
+
+    @Test("The switch mode defaults to automatic and persists")
+    func switchMode() {
+        let store = MemoryStore()
+        #expect(Preferences(store: store).switchMode == .automatic)
+        Preferences(store: store).switchMode = .holdKey
+        #expect(Preferences(store: store).switchMode == .holdKey)
+    }
 }

@@ -67,6 +67,24 @@ private struct GeneralSettings: View {
                         + "Longer means quick glances never switch.")
             }
 
+            Section {
+                Picker("Keyboard follows", selection: $model.switchMode) {
+                    Text("When I start typing").tag(SwitchMode.automatic)
+                    Text("While I hold Fn").tag(SwitchMode.holdKey)
+                    Text("Right away").tag(SwitchMode.immediate)
+                }
+                if model.gaze.isKeyboardUnavailable {
+                    Label(
+                        "Needs Accessibility access. Until it's allowed, the keyboard moves right away.",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+                }
+            } footer: {
+                Text(switchModeExplanation)
+            }
+
             Section("Permissions") {
                 PermissionRow(
                     title: "Camera",
@@ -85,6 +103,18 @@ private struct GeneralSettings: View {
         }
         .formStyle(.grouped)
         .frame(height: 430)
+    }
+
+    private var switchModeExplanation: String {
+        switch model.switchMode {
+        case .automatic:
+            "The pointer moves to the display you face. Keyboard focus follows when you start typing, "
+                + "so talking to someone, or typing while you look elsewhere, never moves it."
+        case .holdKey:
+            "Nothing moves unless you hold Fn. Look at a display and hold Fn to switch to it."
+        case .immediate:
+            "The pointer and keyboard focus move together as soon as you face another display."
+        }
     }
 }
 

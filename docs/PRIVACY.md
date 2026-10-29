@@ -31,6 +31,21 @@ The camera is **off** when Glazer is turned off, when only one display is connec
 when setup isn't finished. The green camera light is controlled by macOS, not by Glazer,
 so it always tells you the truth.
 
+## The keyboard
+
+To move keyboard focus at the right moment, Glazer needs to know when you start typing,
+and in hold key mode, whether Fn is held. It watches key events with a macOS event tap
+(the same mechanism text expanders and shortcut apps use), which needs Accessibility
+access.
+
+From each key event it reads exactly two things: **that a key went down, and when**, and
+**whether Fn is held**. It never reads which key you pressed or what you typed, and it
+stores nothing. When focus moves on a keystroke, that key is held for 60 milliseconds and
+then delivered, unchanged, to the new window.
+
+In **Right away** mode, Glazer doesn't watch the keyboard at all. The code is in
+`Sources/GlazerSystem/Focus/KeyboardMonitor.swift`.
+
 ## What Glazer stores
 
 | What | Where | Contains |
@@ -54,6 +69,7 @@ The face lock template is biometric data, so it gets extra protection:
 - Record, save or upload video, photos or screenshots.
 - Connect to the internet. There is no analytics, crash reporting, update check or
   telemetry.
+- Read which keys you press or what you type.
 - Read window titles or anything shown on your screen. To find the window to focus,
   Glazer reads only window positions and which app owns them, which needs no Screen
   Recording permission.
@@ -65,7 +81,7 @@ The face lock template is biometric data, so it gets extra protection:
 | Permission | Why | Without it |
 |---|---|---|
 | Camera | To see which display you're facing | Glazer can't work |
-| Accessibility | To bring the window you last used on a display to the front | The pointer still moves, but macOS may not bring the window forward |
+| Accessibility | To bring the window you last used on a display to the front, and to know when you start typing | The pointer still moves, but macOS may not bring the window forward, and keyboard focus moves right away instead of when you type |
 | Touch ID or password | To confirm it's you before face lock is set up or deleted | Face lock can't be set up |
 
 ## Removing everything
