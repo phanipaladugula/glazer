@@ -12,6 +12,11 @@ let package = Package(
         .target(
             name: "GlazerCore"
         ),
+        // Thin adapters over macOS APIs (screens, hot keys, and later camera and focus).
+        .target(
+            name: "GlazerSystem",
+            dependencies: ["GlazerCore"]
+        ),
         .testTarget(
             name: "GlazerCoreTests",
             dependencies: ["GlazerCore"]
