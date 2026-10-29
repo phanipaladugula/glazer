@@ -152,6 +152,11 @@ After that, Glazer lives in the menu bar.
 
 <img src="docs/images/screenshots/face-lock.png" width="300" align="right" alt="Face lock setup: a camera circle ringed by progress ticks.">
 
+> [!NOTE]
+> Face lock is **experimental**. Apple doesn't offer face recognition to apps, so it uses a
+> general image comparison built into macOS. In testing it told people apart, but with a
+> small margin. Glazer works well without it.
+
 Without face lock, Glazer follows the person nearest the camera and holds on to them as
 others come and go. With face lock, it follows only you.
 
@@ -166,6 +171,19 @@ explains the approach and its limits.
 <br clear="right">
 
 ## Troubleshooting
+
+<details>
+<summary><b>Check that the camera sees your head turn</b></summary>
+
+From a clone of the repository, run:
+
+```sh
+swift run glazer-camera-check
+```
+
+It prints your head's yaw live, using Glazer's own camera code. Turning from one display
+to the other should change it smoothly by 20° or more. Nothing is recorded.
+</details>
 
 <details>
 <summary><b>It picks the wrong display</b></summary>

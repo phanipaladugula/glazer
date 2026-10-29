@@ -8,6 +8,34 @@ All notable changes to Glazer are recorded here. The format follows
 
 ### Added
 
+- `swift run glazer-camera-check`, which shows your head's yaw live using Glazer's own
+  camera code.
+
+### Changed
+
+- Face lock is marked experimental. Its signatures now use the exact face box, its match
+  threshold is learned across head angles, and it drops the user only after three failed
+  checks in a row. Face lock needs setting up again.
+- Setup explains that without Accessibility only the pointer moves, and the menu bar
+  panel offers to fix it.
+
+### Fixed
+
+- A display that was disconnected after calibration could still be chosen, warping the
+  pointer to a corner.
+- Closing the face lock window while Touch ID was showing could leave the camera running.
+- The camera now recovers after it's disconnected or fails, rather than staying
+  "unavailable" until relaunch.
+- The camera now turns off while the screen is locked or asleep, or another user is
+  switched in.
+- Changing the switch delay no longer resets who Glazer is following.
+- A switch blocked by a mouse drag is retried cleanly after the drag.
+- The pointer on the top row of pixels no longer counts as off every display.
+- Escape on "Calibration complete" keeps the calibration, and the camera turns off while
+  the result is shown.
+
+### Added
+
 - Glazer never switches displays while you're typing. Keep typing while you look at
   notes or talk to someone, and your words stay where they are. Stop typing for a second
   while facing another display, and focus moves there, ready for you. Glazer only notes

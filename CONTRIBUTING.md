@@ -13,6 +13,7 @@ git clone https://github.com/phanipaladugula/glazer.git
 cd glazer
 Scripts/test.sh          # run the tests
 Scripts/bundle.sh --open # build dist/Glazer.app and launch it
+swift run glazer-camera-check  # check the camera and head tracking live
 ```
 
 To work in Xcode, open `Package.swift`.

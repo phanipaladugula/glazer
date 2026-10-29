@@ -82,7 +82,7 @@ GlazerCore     Pure decision logic and value types. No AppKit, no hardware
 | `Display/` | `DisplayMonitor` |
 | `HotKey/` | `HotKey`, a global shortcut through Carbon |
 | `Login/` | `LaunchAtLogin` |
-| `Support/` | `SystemSettings`, which opens Privacy & Security panes |
+| `Support/` | `SystemSettings`, which opens Privacy & Security panes; `SessionMonitor`, which reports when the screen locks, sleeps or the user switches out |
 
 ### GlazerApp
 
@@ -126,6 +126,12 @@ camera at all.
 | `GlazerSystemTests` | Frame analysis with real Vision on synthetic camera images |
 
 Run `Scripts/test.sh`. It works with only the Command Line Tools installed.
+
+## Tools
+
+`glazer-camera-check` is a small command-line target that runs the real camera and Vision
+code and prints the head angle live: `swift run glazer-camera-check`. Use it to check a
+camera or a lighting setup without the app.
 
 ## Building without Xcode
 

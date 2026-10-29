@@ -27,7 +27,8 @@ The camera also runs while you calibrate, and while you set up face lock. During
 lock setup, a live preview is shown in the setup window. It is shown on screen only and
 never recorded.
 
-The camera is **off** when Glazer is turned off, when only one display is connected, and
+The camera is **off** when the screen is locked or asleep, when another user is
+switched in, when Glazer is turned off, when only one display is connected, and
 when setup isn't finished. The green camera light is controlled by macOS, not by Glazer,
 so it always tells you the truth.
 
