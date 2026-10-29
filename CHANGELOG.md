@@ -16,6 +16,12 @@ All notable changes to Glazer are recorded here. The format follows
 - Clearer install errors: a release that doesn't exist is reported as such, not as a
   connection problem. Ctrl-C cancels cleanly without installing anything.
 
+### Security
+
+- The install script compares the checksum directly, checks the app is signed as Glazer
+  (and, once releases have a signing identity, by Glazer's certificate), requires TLS 1.2,
+  and refuses to run as root. Uninstalling also removes the face lock Keychain item.
+
 ### Added
 
 - Glazer never switches displays while you're typing. Keep typing while you look at
