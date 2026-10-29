@@ -37,16 +37,17 @@ readonly minimum_macos=15
 # the bundle ID. (Whoever can set it could run anything anyway.)
 readonly expected_signer="${GLAZER_EXPECTED_SIGNER-9A1C93ABCF0EBCD6D460CAA07AF82A9E960719E9}"
 
-# Some networks can't reach every GitHub download server. A short connect timeout lets
-# curl give up on an unreachable server within seconds and try the next, instead of
-# waiting tens of seconds. Timeouts, refused connections and server errors are retried;
-# a missing release (404) is not.
+# Some networks can't reach every GitHub download server, or reach one that then stalls
+# without sending anything. So every request has a short connect timeout, a time limit,
+# and gives up when data stops arriving; `fetch` then tries again as a new curl process,
+# which can pick another server (curl's own --retry keeps the one it has). A missing
+# release (404) isn't retried.
 readonly curl_options=(
     --fail --location --silent --show-error
     --proto "=https,file" --proto-redir "=https"
-    --tlsv1.2 --connect-timeout 3 --retry 4 --retry-delay 1 --retry-connrefused
-    --max-time 300
+    --tlsv1.2 --connect-timeout 5 --speed-limit 1024 --speed-time 15
 )
+readonly fetch_attempts=4
 
 # ---------------------------------------------------------------------------
 # Options
@@ -340,11 +341,13 @@ status() {
 # Installing
 
 workspace=""
-download_pid=""
+background_pid=""
 
 cleanup() {
-    if [[ -n "$download_pid" ]]; then
-        kill "$download_pid" 2>/dev/null || true
+    if [[ -n "$background_pid" ]]; then
+        # The job is a subshell running curl: stop both.
+        pkill -P "$background_pid" 2>/dev/null || true
+        kill "$background_pid" 2>/dev/null || true
     fi
     if [[ -n "$workspace" ]]; then
         rm -rf "$workspace"
@@ -382,6 +385,54 @@ quit_glazer() {
 
 # The release's base URL, its version (when known) and the zip's size, from one request
 # that follows GitHub's redirects without downloading anything.
+# Runs curl with `curl_options` and a time limit of $1 seconds, up to `fetch_attempts`
+# times, each as a new process. Before each retry it writes the attempt number to
+# $workspace/attempt, so the progress line can say it's trying again.
+fetch() {
+    local max_time=$1 attempt code=0
+    shift
+    for ((attempt = 1; attempt <= fetch_attempts; attempt++)); do
+        if ((attempt > 1)); then
+            printf '%s' "$attempt" >"$workspace/attempt"
+            sleep 1
+        fi
+        code=0
+        curl "${curl_options[@]}" --max-time "$max_time" "$@" || code=$?
+        # Done, or an HTTP error such as 404 that asking again won't change.
+        ((code == 0 || code == 22)) && return "$code"
+    done
+    return "$code"
+}
+
+# The attempt `fetch` last said it's on, once it has retried.
+retry_attempt=""
+
+# Says when `fetch` is trying again: on the progress line, or as a note in plain output.
+report_retry() {
+    local attempt
+    attempt=$(cat "$workspace/attempt" 2>/dev/null || true)
+    [[ -n "$attempt" && "$attempt" != "$retry_attempt" ]] || return 0
+    retry_attempt=$attempt
+    status_text="GitHub is slow to answer. Trying again ($attempt of $fetch_attempts)…"
+    $animate || note "$status_text"
+}
+
+# Waits for the background job $1, keeping the robot moving and the progress line
+# current, so a slow server never looks like a frozen installer. Returns the job's status.
+wait_animated() {
+    background_pid=$1
+    while kill -0 "$background_pid" 2>/dev/null; do
+        report_retry
+        if $animate; then animation_tick; else sleep 0.2; fi
+    done
+    local code=0
+    wait "$background_pid" || code=$?
+    background_pid=""
+    rm -f "$workspace/attempt"
+    retry_attempt=""
+    return "$code"
+}
+
 resolve_release() {
     if [[ -n "${GLAZER_RELEASE_URL:-}" ]]; then
         base_url=${GLAZER_RELEASE_URL%/}
@@ -391,16 +442,17 @@ resolve_release() {
         base_url="https://github.com/${repository}/releases/download/v${version}"
     fi
 
-    local headers code option
-    if ! headers=$(curl "${curl_options[@]}" --head "$base_url/Glazer.zip" 2>/dev/null); then
-        # Ask again without --fail, to learn whether the release is missing or GitHub is
-        # unreachable.
-        local probe_options=()
+    local headers code
+    fetch 20 --head "$base_url/Glazer.zip" >"$workspace/headers" 2>/dev/null &
+    if ! wait_animated $!; then
+        # Ask once more, without --fail, to learn whether the release is missing or GitHub
+        # is unreachable.
+        local probe_options=() option
         for option in "${curl_options[@]}"; do
             [[ "$option" == --fail ]] || probe_options+=("$option")
         done
-        code=$(curl "${probe_options[@]}" --head --output /dev/null --write-out '%{http_code}' \
-            "$base_url/Glazer.zip" 2>/dev/null || true)
+        code=$(curl "${probe_options[@]}" --max-time 20 --head --output /dev/null \
+            --write-out '%{http_code}' "$base_url/Glazer.zip" 2>/dev/null || true)
         if [[ "$code" == 404 && "$version" != latest ]]; then
             fail "There's no Glazer release $version. See https://github.com/$repository/releases"
         elif [[ "$code" == 404 ]]; then
@@ -409,7 +461,7 @@ resolve_release() {
             fail "Couldn't reach GitHub to download Glazer. Check your connection and try again."
         fi
     fi
-    headers=${headers//$'\r'/}
+    headers=$(tr -d '\r' <"$workspace/headers")
 
     if [[ "$version" == latest ]]; then
         local tagged
@@ -420,29 +472,31 @@ resolve_release() {
 }
 
 download_zip() {
-    curl "${curl_options[@]}" "$base_url/Glazer.zip.sha256" -o "$workspace/Glazer.zip.sha256" ||
-        fail "Couldn't download the checksum for this release."
+    fetch 20 "$base_url/Glazer.zip.sha256" -o "$workspace/Glazer.zip.sha256" 2>/dev/null &
+    wait_animated $! || fail "Couldn't download the checksum for this release."
 
-    curl "${curl_options[@]}" "$base_url/Glazer.zip" -o "$workspace/Glazer.zip" 2>"$workspace/curl.log" &
-    download_pid=$!
+    # Each attempt starts the file again; the robot doesn't walk back.
+    fetch 600 "$base_url/Glazer.zip" -o "$workspace/Glazer.zip" 2>"$workspace/curl.log" &
+    background_pid=$!
 
     if $animate; then
         local bytes
-        while kill -0 "$download_pid" 2>/dev/null; do
-            if ((zip_size > 0)); then
-                bytes=$(stat -f %z "$workspace/Glazer.zip" 2>/dev/null || echo 0)
+        while kill -0 "$background_pid" 2>/dev/null; do
+            report_retry
+            bytes=$(stat -f %z "$workspace/Glazer.zip" 2>/dev/null || echo 0)
+            # Once data arrives, show progress again, saying which attempt it is.
+            if ((zip_size > 0 && bytes > 0)); then
                 target=$((bytes * 850 / zip_size))
                 status_text="Downloading ${label%% (*}  ·  $(human_size "$bytes") of $(human_size "$zip_size")"
+                [[ -z "$retry_attempt" ]] || status_text+="  ·  attempt $retry_attempt of $fetch_attempts"
             fi
             animation_tick
         done
     fi
 
-    if ! wait "$download_pid"; then
-        download_pid=""
-        fail "Couldn't download Glazer: $(tail -1 "$workspace/curl.log" | sed 's/^curl: ([0-9]*) //')"
+    if ! wait_animated "$background_pid"; then
+        fail "Couldn't download Glazer: $(grep -v '^$' "$workspace/curl.log" | tail -1 | sed 's/^curl: ([0-9]*) //')"
     fi
-    download_pid=""
     status_text="Downloaded ${label%% (*}"
     walk_to 850
 }

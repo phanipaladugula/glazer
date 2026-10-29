@@ -6,6 +6,15 @@ All notable changes to Glazer are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The install script could look frozen for a minute or more. On some networks one of
+  GitHub's download servers accepts the connection and then sends nothing, and curl
+  waited up to five minutes for it, retrying the same server. Each request now has a short
+  time limit and gives up when data stops arriving, then tries again as a new connection,
+  which reaches another server. While it waits, the robot keeps moving and the progress
+  line says it's trying again.
+
 ### Security
 
 - The install script accepts only an app signed with Glazer's own certificate, so a
