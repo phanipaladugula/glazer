@@ -10,6 +10,7 @@ struct ConditionPresentation {
         case calibrate
         case retryFaceLock
         case retryCamera
+        case openAccessibilitySettings
     }
 
     /// The panel's status line.
@@ -65,6 +66,13 @@ struct ConditionPresentation {
                 callout: (
                     "Glazer couldn't read your face lock from the Keychain, so it's paused rather than "
                         + "following just anyone.", "Try Again", .retryFaceLock
+                ))
+        case .attention(.accessibilityNeeded):
+            self.init(
+                "Needs Accessibility", symbol: "eye.trianglebadge.exclamationmark", active: false,
+                callout: (
+                    "Glazer needs Accessibility to move your typing to the display you look at. If Glazer is "
+                        + "already listed, switch it off and on again.", "Open Settings…", .openAccessibilitySettings
                 ))
         case .attention(.calibrationNeeded):
             self.init(

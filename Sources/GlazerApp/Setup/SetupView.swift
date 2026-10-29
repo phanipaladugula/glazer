@@ -81,8 +81,8 @@ struct SetupView: View {
         case .accessibility:
             SetupPage(
                 symbol: "accessibility", title: "Accessibility",
-                message: "Glazer needs this to bring the window you were using on the other display to the "
-                    + "front, and to wait while you type. Without it, only the pointer moves."
+                message: "Glazer needs this to move your typing to the display you look at, and to wait "
+                    + "while you type. Until it's allowed, Glazer stays paused."
             ) {
                 PermissionStatus(
                     isGranted: model.hasAccessibilityAccess,

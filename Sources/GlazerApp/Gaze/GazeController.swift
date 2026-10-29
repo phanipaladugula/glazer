@@ -78,6 +78,9 @@ final class GazeController {
 
         var classification = DisplayClassifier.Configuration()
         classification.dwell = switchDelay
+        // Weight head turn and tilt by how the displays are arranged: stacked displays are
+        // told apart by tilt, side-by-side ones by turn.
+        classification.weights = AxisWeights(arranging: displays)
         // Only connected displays can be chosen: a disconnected display's calibration
         // point would otherwise send focus nowhere.
         var engine = GazeEngine(

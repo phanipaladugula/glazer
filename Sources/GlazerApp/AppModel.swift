@@ -31,6 +31,9 @@ final class AppModel {
         /// Face lock is set up, but its template couldn't be read from the Keychain, such
         /// as when the user chose Deny. Glazer pauses rather than follow just anyone.
         case faceLockUnavailable
+        /// Without Accessibility, Glazer can move the pointer but not the keyboard, which
+        /// sends typing to the display the user isn't looking at. So it pauses instead.
+        case accessibilityNeeded
     }
 
     // MARK: Settings
@@ -109,6 +112,7 @@ final class AppModel {
     @ObservationIgnored private let vault: FaceVault
     @ObservationIgnored private var toggleHotKey: HotKey?
     @ObservationIgnored private var session: SessionMonitor?
+    @ObservationIgnored private var permissionTimer: Timer?
     @ObservationIgnored private lazy var calibrationCoordinator = CalibrationCoordinator(gaze: gaze)
     private var isCalibrating = false
 
@@ -125,7 +129,18 @@ final class AppModel {
         registerToggleShortcut()
         observeDisplays()
         session = SessionMonitor { [weak self] in self?.refresh() }
+        watchPermissions()
         refresh()
+    }
+
+    /// Permissions have no change notifications, and Accessibility can stop working
+    /// without the user touching it (after an update, macOS may keep the switch on in
+    /// System Settings while no longer trusting the new build). Both checks are cheap, so
+    /// they run every couple of seconds; nothing happens unless one changes.
+    private func watchPermissions() {
+        permissionTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshPermissions() }
+        }
     }
 
     // MARK: Condition
@@ -145,6 +160,7 @@ final class AppModel {
         if displays.count < 2 { return .secondDisplayNeeded }
         if calibration?.covers(displays) != true { return .calibrationNeeded }
         if faceLock == .unreadable { return .faceLockUnavailable }
+        if !hasAccessibilityAccess { return .accessibilityNeeded }
         return nil
     }
 

@@ -52,6 +52,16 @@ All notable changes to Glazer are recorded here. The format follows
 
 ### Fixed
 
+- Typing could go to the display the user wasn't looking at. Without working
+  Accessibility access, Glazer moved the pointer but asked macOS to activate the other
+  app, which macOS ignores unless Glazer is the active app: true just after setup, and
+  rarely after. Glazer now moves keyboard focus first, checks it moved, and only then
+  moves the pointer. Without Accessibility it pauses and says so, and it resumes by
+  itself once access is allowed.
+- Displays stacked one above the other were told apart mostly by head turn, which shifts
+  when the user moves in their chair, so focus could go to the wrong display. Head turn
+  and tilt are now weighted by how the displays are actually arranged.
+
 - macOS asked for Keychain access at every launch: the face lock item is now read only
   when it's needed, at most once per launch.
 - Toggling Glazer quickly could leave the camera off while showing "Looking for you".
