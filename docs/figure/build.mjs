@@ -12,7 +12,7 @@
 
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import * as k from "./kit/iso-kit.mjs";
 import * as G from "./kit/lathe.mjs";
 
@@ -22,13 +22,19 @@ const OUT = join(HERE, "..", "images");
 // ---------------------------------------------------------------- the model
 // Yaw in degrees, positive = head turned right. These are Glazer's example
 // calibration values; the decision boundary is their midpoint.
-const CAL = { mac: -4, lg: 28 };
-const BOUNDARY = (CAL.mac + CAL.lg) / 2; // +12°
-const HYST = 3; // ± degrees of hysteresis around the boundary
-const YAW = 27; // the head's current yaw
-const DWELL = 0.5; // seconds the yaw must stay past the band
+export const CAL = { mac: -4, lg: 28 };
+export const BOUNDARY = (CAL.mac + CAL.lg) / 2; // +12°
+export const HYST = 3; // ± degrees of hysteresis around the boundary
+export const YAW = 27; // the head's yaw in the static figure
+export const DWELL = 0.5; // seconds the yaw must stay past the band
 const target = Math.abs(YAW - CAL.lg) < Math.abs(YAW - CAL.mac) && YAW > BOUNDARY + HYST ? "LG" : "MacBook";
 const READOUT = `yaw ${YAW >= 0 ? "+" : ""}${YAW}° → ${target === "LG" ? "LG" : "MacBook"}`;
+
+// What one picture shows: the head's yaw, how full the dwell gauge is (0–1),
+// which display has focus ("mac" or "lg") and the readout. The static figure
+// is the moment the dwell completes on the LG.
+export const STATIC = { yaw: YAW, dwell: 1, focus: target === "LG" ? "lg" : "mac", readout: READOUT };
+let ST = STATIC;
 
 // ---------------------------------------------------------------- the world
 const WIDTH = 880;
@@ -97,11 +103,40 @@ function planeMatrix(o, ex, ey) {
 }
 const flatRect = (x0, y0, x1, y1, r, steps = 4) => k.pathOf(k.roundedPlan({ x: x0, y: y0, w: x1 - x0, d: y1 - y0, r }, steps), true);
 
-let count = 0; // solids drawn, for the report
+let count = 0; // solids drawn per render, for the report
 const solid = (paths, style) => {
   count++;
   return S(paths, style);
 };
+
+// What a focused screen shows, in its own plane: a menu bar, a window, a dock
+// and the pointer. x runs from x0 to x1 (centred on 0), y down from y0 to y1;
+// s scales the furniture to the size of the screen.
+function screenContent(x0, x1, y0, y1, s = 1) {
+  const H = y1 - y0;
+  const W = x1 - x0;
+  const menu = `M${thou(x0)} ${thou(y0 + 4.4 * s)}H${thou(x1)}`;
+  const win = flatRect(-W * 0.3, y0 + 12 * s, W * 0.24, y0 + H - 16 * s, 1.6 * s);
+  const bar = `M${thou(-W * 0.3)} ${thou(y0 + 17 * s)}H${thou(W * 0.24)}`;
+  const lights = [0, 2.6, 5.2].map((dx) => `M${thou(-W * 0.3 + (3 + dx) * s)} ${thou(y0 + 14.5 * s)}h0`).join("");
+  const dock = flatRect(-W * 0.18, y0 + H - 7 * s, W * 0.18, y0 + H - 2.4 * s, 1.6 * s);
+  const step = (W * 0.36 - 4.4 * s) / 8;
+  const icons = Array.from({ length: 8 }, (_, i) => flatRect(-W * 0.18 + 2.2 * s + i * step + 0.5 * s, y0 + H - 6.2 * s, -W * 0.18 + 2.2 * s + (i + 1) * step - 0.5 * s, y0 + H - 3.2 * s, 0.6 * s, 2)).join("");
+  // the pointer, landed near the middle of the screen
+  const px = 14 * s;
+  const py = y0 + H * 0.46;
+  const arrow = [[0, 0], [0, 11], [2.6, 8.4], [4.6, 12.8], [6.2, 12.1], [4.3, 7.8], [8, 7.8]].map(([x, y]) => [px + x * 0.9 * s, py + y * 0.9 * s]);
+  return (
+    `<path class="hero-screen" d="${flatRect(x0 + 0.3, y0 + 0.3, x1 - 0.3, y1 - 0.3, 0.8)}"/>` +
+    L(menu, { tone: "lo" }) +
+    L(win, { tone: "lo" }) +
+    L(bar, { tone: "lo" }) +
+    `<path class="iso-line" data-tone="mid" data-free="" d="${lights}" style="stroke-width:${thou(1.6 * s)}"/>` +
+    L(dock, { tone: "lo" }) +
+    L(icons, { tone: "lo" }) +
+    `<path class="hero-pointer" d="${k.pathOf(arrow, true)}"/>`
+  );
+}
 
 // ---------------------------------------------------------------- base
 function plate() {
@@ -199,7 +234,10 @@ function macbook() {
   const face = (x, y) => [lidO[0] + right3[0] * x + up[0] * y, lidO[1] + right3[1] * x + up[1] * y, lidO[2] + up[2] * y];
   const M = planeMatrix(lidO, right3, [-up[0], -up[1], -up[2]]);
   const glass = flatRect(-hw + 2.8, -(MAC.lidH - 4.2), hw - 2.8, -3.2, 1.4);
-  out.push(`<g transform="${M}"><path class="hero-glass" d="${glass}"/>${L(glass, { tone: "lo" })}${L(flatRect(-hw + 1.2, -(MAC.lidH - 1.2), hw - 1.2, -1.2, 2.4, 6), { tone: "faint" })}</g>`);
+  const bezel = L(flatRect(-hw + 1.2, -(MAC.lidH - 1.2), hw - 1.2, -1.2, 2.4, 6), { tone: "faint" });
+  const lit = ST.focus === "mac";
+  const screen = lit ? screenContent(-hw + 2.8, hw - 2.8, -(MAC.lidH - 4.2), -3.2, 0.62) + L(glass, { tone: "lit" }) : `<path class="hero-glass" d="${glass}"/>${L(glass, { tone: "lo" })}`;
+  out.push(`<g transform="${M}">${screen}${bezel}</g>`);
   out.push(L(k.pathOf(Array.from({ length: 16 }, (_, i) => { const a = (i / 16) * Math.PI * 2; return at(face(Math.cos(a) * 1, MAC.lidH - 2.2 + Math.sin(a) * 1)); }), true), { tone: "faint" }));
   out.push(D([at(face(0, MAC.lidH - 2.2))], { size: 0.55, tone: "hi" }));
   return out.join("");
@@ -230,35 +268,14 @@ function monitor() {
   const sx1 = hw - 2.4;
   const sz0 = z + LG.z0 + 4.2;
   const sz1 = z + LG.z1 - 2.4;
-  out.push(solid(box(to, sx0, sx1, -3.1, -2.5, 1, sz0, sz1 - sz0, 3), { tone: "hi", lit: true }));
+  const lit = ST.focus === "lg";
+  out.push(solid(box(to, sx0, sx1, -3.1, -2.5, 1, sz0, sz1 - sz0, 3), lit ? { tone: "hi", lit: true } : { tone: "mid" }));
   // content in the glass plane: local x to the user's right, y down from the top edge
   const right3 = [right(LG.yaw)[0], right(LG.yaw)[1], 0];
   const o = [...to(0, -3.1), sz1];
   const M = planeMatrix(o, right3, [0, 0, -1]);
   const H = sz1 - sz0;
-  const W = sx1 - sx0;
-  const menu = `M${thou(sx0)} 4.4H${thou(sx1)}`;
-  const win = flatRect(-W * 0.3, 12, W * 0.24, H - 16, 1.6);
-  const bar = `M${thou(-W * 0.3)} 17H${thou(W * 0.24)}`;
-  const lights = [0, 2.6, 5.2].map((dx) => `M${thou(-W * 0.3 + 3 + dx)} 14.5h0`).join("");
-  const dock = flatRect(-W * 0.18, H - 7, W * 0.18, H - 2.4, 1.6);
-  const icons = Array.from({ length: 8 }, (_, i) => flatRect(-W * 0.18 + 2.2 + i * ((W * 0.36 - 4.4) / 8) + 0.5, H - 6.2, -W * 0.18 + 2.2 + (i + 1) * ((W * 0.36 - 4.4) / 8) - 0.5, H - 3.2, 0.6, 2)).join("");
-  // the pointer, landed near the middle of the screen
-  const px = 14;
-  const py = H * 0.46;
-  const arrow = [[0, 0], [0, 11], [2.6, 8.4], [4.6, 12.8], [6.2, 12.1], [4.3, 7.8], [8, 7.8]].map(([x, y]) => [px + x * 0.9, py + y * 0.9]);
-  out.push(
-    `<g transform="${M}">` +
-      `<path class="hero-screen" d="${flatRect(sx0 + 0.3, 0.3, sx1 - 0.3, H - 0.3, 0.8)}"/>` +
-      L(menu, { tone: "lo" }) +
-      L(win, { tone: "lo" }) +
-      L(bar, { tone: "lo" }) +
-      `<path class="iso-line" data-tone="mid" data-free="" d="${lights}" style="stroke-width:1.6"/>` +
-      L(dock, { tone: "lo" }) +
-      L(icons, { tone: "lo" }) +
-      `<path class="hero-pointer" d="${k.pathOf(arrow, true)}"/>` +
-      `</g>`,
-  );
+  out.push(`<g transform="${M}">` + (lit ? screenContent(sx0, sx1, 0, H) : `<path class="hero-glass" d="${flatRect(sx0 + 0.3, 0.3, sx1 - 0.3, H - 0.3, 0.8)}"/>`) + `</g>`);
   // power LED under the bottom bezel
   out.push(D([at([...to(hw - 10, -2.5), z + LG.z0 + 1.6])], { size: 0.5, tone: "hi" }));
   return out.join("");
@@ -316,20 +333,20 @@ function turret() {
   out.push(...caps);
 
   // alidade: index pointer arm, disc, and what stands on it
-  const toA = frame2([0, 0], YAW);
+  const toA = frame2([0, 0], ST.yaw);
   const arm = [toA(-4, ALI_R - 3), toA(4, ALI_R - 3), toA(1.2, SCALE_R - 4.6), toA(0, SCALE_R - 2.4), toA(-1.2, SCALE_R - 4.6)];
   out.push(solid(k.extrude(arm, DIAL_TOP, 1.4, P, { bevel: 0.3 }), { tone: "mid" }));
   out.push(L(k.onTop([toA(0, ALI_R - 2), toA(0, SCALE_R - 2.4)], DIAL_TOP + 1.4, P), { tone: "hi" }));
   out.push(`<path class="iso-halo" d="${k.cylinder(0, 0, ALI_R - 4, DIAL_TOP, 1, P, 48).fill}" style="opacity:.45"/>`);
   out.push(solid(k.cylinder(0, 0, ALI_R, DIAL_TOP, ALI_TOP - DIAL_TOP, P, 72, 0.6), { tone: "mid" }));
   out.push(L(k.ring(0, 0, ALI_R - 3, ALI_TOP, P, 72), { tone: "faint" }));
-  const aliScrews = [YAW + 45, YAW + 135, YAW + 225, YAW + 315].map((y) => polar(y, ALI_R - 6));
+  const aliScrews = [ST.yaw + 45, ST.yaw + 135, ST.yaw + 225, ST.yaw + 315].map((y) => polar(y, ALI_R - 6));
   out.push(D(aliScrews.map(([x, y]) => at([x, y, ALI_TOP])), { size: 0.45 }));
 
   const onAli = [];
   // knurled lock knob on a lug
   {
-    const yaw = YAW + 90;
+    const yaw = ST.yaw + 90;
     const to = frame2([0, 0], yaw);
     const [kx, ky] = polar(yaw, ALI_R + 6);
     onAli.push({
@@ -342,27 +359,29 @@ function turret() {
         D([at([kx, ky, ALI_TOP + 7])], { size: 0.5, tone: "hi" }),
     });
   }
-  // dwell indicator: a small round gauge, segments all filled (0.5 s held)
+  // dwell indicator: a small round gauge of 12 segments that fill over DWELL
   {
-    const [gx, gy] = polar(YAW + 168, 27);
+    const [gx, gy] = polar(ST.yaw + 168, 27);
     const segs = Array.from({ length: 12 }, (_, i) => {
       const a0 = i * 30 + 4;
       const a1 = a0 + 22;
       const arc = (r, from, to) => Array.from({ length: 5 }, (_, j) => [...polar(from + ((to - from) * j) / 4, r, [gx, gy]), ALI_TOP + 2.2]);
       return k.pathOf([...arc(5.2, a0, a1), ...arc(3.6, a1, a0)].map(at), true);
     });
+    const lit = Math.min(12, Math.floor(ST.dwell * 12 + 1e-6));
+    const filled = segs.slice(0, lit).join("");
     onAli.push({
       at: [gx, gy],
       svg:
         solid(k.cylinder(gx, gy, 7, ALI_TOP, 2.2, P, 40, 0.4), { tone: "mid" }) +
-        `<path class="hero-seg" d="${segs.join("")}"/>` +
-        L(segs.join(""), { tone: "hi" }) +
+        (filled ? `<path class="hero-seg" d="${filled}"/>` + L(filled, { tone: "hi" }) : "") +
+        L(segs.slice(lit).join(""), { tone: "lo" }) +
         L(k.ring(gx, gy, 1.5, ALI_TOP + 2.2, P, 16), { tone: "lo" }),
     });
   }
   // level vial
   {
-    const yaw = YAW + 220;
+    const yaw = ST.yaw + 220;
     const to = frame2(polar(yaw, 26), yaw + 90);
     onAli.push({
       at: polar(yaw, 26),
@@ -375,8 +394,8 @@ function turret() {
   }
 
   // housing, standards, telescope
-  const right3 = [right(YAW)[0], right(YAW)[1], 0];
-  const fwd3 = [dir(YAW)[0], dir(YAW)[1], 0];
+  const right3 = [right(ST.yaw)[0], right(ST.yaw)[1], 0];
+  const fwd3 = [dir(ST.yaw)[0], dir(ST.yaw)[1], 0];
   const head = [];
   head.push(solid(k.cylinder(0, 0, HOUSE_R + 2, ALI_TOP, 2.4, P, 48), { tone: "mid" }));
   head.push(solid(k.cylinder(0, 0, HOUSE_R, ALI_TOP + 2.4, HOUSE_TOP - ALI_TOP - 2.4, P, 48, 0.5), { tone: "hi", crease: "lo", inner: L(k.sideArc(0, 0, HOUSE_R, ALI_TOP + 7, P, 32), { tone: "faint" }) }));
@@ -384,7 +403,7 @@ function turret() {
   const scopeF = G.frameAlong([0, 0, SCOPE_Z], fwd3);
   const scope = G.solidOf([[-19, 2.3], [-15.5, 2.3], [-15.5, 2.9], [-14, 2.9], [-14, 3.6], [9, 3.6], [9, 4.6], [18, 4.6]], scopeF, P);
   const eye = G.frameAlong([0, 0, SCOPE_Z], fwd3);
-  const near = depth2(right(YAW)) > 0 ? 7.4 : -7.4;
+  const near = depth2(right(ST.yaw)) > 0 ? 7.4 : -7.4;
   head.push(solid(stdAt(-near), { tone: "mid" }));
   head.push(solid(scope, { tone: "hi", crease: "lo", inner: L(G.arcOf(scopeF, 0, 3.6, P), { tone: "faint" }) + L(G.arcOf(scopeF, 13.5, 4.6, P), { tone: "faint" }) }));
   head.push(`<path class="hero-glass" d="${G.circleOf(eye, -19, 1.5, P, 24)}"/>` + L(G.circleOf(eye, -19, 1.5, P, 24), { tone: "lo" }));
@@ -426,27 +445,36 @@ function card() {
     text("fig", inset, inset + 9, "start", "Fig 1"),
     text("title", WIDTH - inset, inset + 9, "end", "Head direction picks the display"),
     text("hint", inset, base, "start", "Glazer · head-pose focus"),
-    text("readout", WIDTH - inset, base, "end", READOUT),
+    text("readout", WIDTH - inset, base, "end", ST.readout),
   ].join("");
 }
 
-const label =
+const STATIC_LABEL =
   `Fig 1, head direction picks the display. A sighting turret on a rotary base stands in for the user's head. ` +
   `Its yaw circle is engraved every 2 degrees and carries two calibration stops, the MacBook at ${CAL.mac} degrees and the LG monitor at +${CAL.lg} degrees, ` +
   `with a hysteresis band around the +${BOUNDARY} degree midpoint. The turret is turned to +${YAW} degrees and its dwell gauge is full, ` +
   `so the LG monitor's screen is lit and holds the pointer, while the MacBook's screen stays dark.`;
 
-// The monitor stands behind the MacBook's right edge, so it is painted first.
-const body = [card(), plate(), desk(), monitor(), macbook(), turret()];
-
-mkdirSync(OUT, { recursive: true });
-for (const theme of ["light", "dark"]) {
+// The whole figure for one state, as a standalone SVG in one theme.
+export function heroSvg(theme, state = STATIC, label = STATIC_LABEL) {
+  ST = state;
+  count = 0;
+  // The monitor stands behind the MacBook's right edge, so it is painted first.
+  const body = [card(), plate(), desk(), monitor(), macbook(), turret()];
+  ST = STATIC;
   let svg = k.figureSvg({ width: WIDTH, height: HEIGHT, label, body, standalone: theme });
   svg = svg.replace("</style>", `${CARD_CSS}</style>`);
   // Unused kit rules (cards, legend, React page) are dropped to keep the file small.
-  svg = svg.replace(/\.iso-figure\{[\s\S]*?(?=@media \(prefers-reduced-motion)/, "").replace(/@media \(max-width:560px\)\{[^}]*\}[^}]*\}\}/, "");
-  const file = join(OUT, `hero-${theme}.svg`);
-  writeFileSync(file, svg);
-  console.log(`wrote ${file} (${(svg.length / 1024).toFixed(1)} KB)`);
+  return svg.replace(/\.iso-figure\{[\s\S]*?(?=@media \(prefers-reduced-motion)/, "").replace(/@media \(max-width:560px\)\{[^}]*\}[^}]*\}\}/, "");
 }
-console.log(`${count} solids · ${READOUT} · dwell ${DWELL}s`);
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  mkdirSync(OUT, { recursive: true });
+  for (const theme of ["light", "dark"]) {
+    const svg = heroSvg(theme);
+    const file = join(OUT, `hero-${theme}.svg`);
+    writeFileSync(file, svg);
+    console.log(`wrote ${file} (${(svg.length / 1024).toFixed(1)} KB)`);
+  }
+  console.log(`${count} solids · ${READOUT} · dwell ${DWELL}s`);
+}
