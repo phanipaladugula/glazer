@@ -53,10 +53,16 @@ The face lock template is biometric data, so it gets extra protection:
 - It is a list of numbers computed by Vision, never a photo. It can't simply be turned
   back into an image. Research has shown rough reconstructions are sometimes possible,
   which is why it gets the protections below.
-- It lives only in your login Keychain, encrypted with your login password, and marked
-  as not synchronisable, so it never goes to iCloud Keychain. Like the rest of your
-  Keychain, it is included in your own encrypted Time Machine backups.
-- Setting it up and deleting it both need Touch ID or your login password.
+- It lives only in your login keychain, which macOS encrypts with your login password and
+  never syncs to iCloud. Like the rest of your keychain, it is included in your own
+  encrypted Time Machine backups.
+- macOS lets only Glazer read it without asking you. Any other app has to ask, and Glazer
+  itself asks too after an update unless the update is signed with the same identity.
+- In Glazer, setting it up and deleting it need Touch ID or your login password. That
+  stops someone at your unlocked Mac from swapping in their own face through Glazer. It
+  isn't a lock on the item itself: you, or anyone at your unlocked Mac, can still delete
+  it in Keychain Access.
+- Glazer reads it only when it starts following you, not at every launch.
 - It never leaves your Mac and is never sent anywhere.
 
 ## What Glazer never does
@@ -77,12 +83,14 @@ The face lock template is biometric data, so it gets extra protection:
 |---|---|---|
 | Camera | To see which display you're facing | Glazer can't work |
 | Accessibility | To bring the window you last used on a display to the front, and to know when you're typing | The pointer still moves, but macOS may not bring the window forward, and Glazer may switch while you type |
-| Touch ID or password | To confirm it's you before face lock is set up or deleted | Face lock can't be set up |
+| Touch ID or password | To confirm it's you before face lock is set up or deleted in Glazer | Face lock can't be set up |
+| Keychain access | macOS asks when an app reads the face lock item. Choose **Always Allow** | Face lock pauses Glazer until allowed |
 
 ## Removing everything
 
-1. In **Settings › Face Lock**, choose **Delete Face…**, or delete the "Glazer face lock"
-   item in Keychain Access.
+1. Run the uninstall command, which removes the app, its settings, its permissions and the
+   face lock item. Or, in **Settings › Face Lock**, choose **Delete Face…**, or delete the
+   "Glazer face lock" item in Keychain Access.
 2. Remove settings and permissions:
 
    ```sh

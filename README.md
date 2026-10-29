@@ -75,7 +75,7 @@ Glazer uses your camera, so it holds itself to a strict standard:
 | **On your Mac only** | Frames are analysed with Apple's Vision framework and discarded immediately. Glazer makes no network requests at all. |
 | **No recordings** | No video, photos or screenshots are ever saved. Window titles and screen contents are never read. |
 | **Camera off when idle** | The camera runs only while Glazer is on and you have two displays. The camera light always tells you. |
-| **Face lock in the Keychain** | Your face signature is a list of numbers, not a photo. It's kept in your login Keychain, never synced to iCloud, and setting it up or deleting it needs Touch ID. |
+| **Face lock in the Keychain** | Your face signature is a list of numbers, not a photo. It's kept in your login keychain and never synced to iCloud, and setting it up or deleting it in Glazer needs Touch ID. |
 
 Read the full [privacy statement](docs/PRIVACY.md). Glazer is open source and has no
 third-party dependencies, so every claim can be checked in the code.
@@ -224,11 +224,17 @@ switches.
 </details>
 
 <details>
-<summary><b>After an update, Glazer asks for permissions again</b></summary>
+<summary><b>macOS asks to let Glazer use "Glazer face lock" in your keychain</b></summary>
 
-Releases are signed ad hoc, not with an Apple Developer ID, so macOS treats each new
-version as a new app. Allow the camera and Accessibility again, and choose **Always
-Allow** if macOS asks about Glazer's Keychain item. Your calibration and settings are kept.
+That's macOS protecting your face signature: only the app that saved it may read it
+without asking. Choose **Always Allow**. If you choose **Deny**, Glazer pauses rather than
+follow just anyone, and **Try Again** in the menu bar asks once more.
+
+macOS recognises "the same app" by its code signature. Releases signed with Glazer's
+signing identity keep that across updates, so you're asked once. Builds signed ad hoc,
+such as your own builds from source without a signing identity, look like a new app each
+time, so macOS asks again and also forgets camera and Accessibility permissions. See
+[Releasing](docs/RELEASING.md#signing) to sign your builds.
 </details>
 
 <details>
@@ -239,7 +245,7 @@ tccutil reset All io.github.phanipaladugula.glazer
 defaults delete io.github.phanipaladugula.glazer
 ```
 
-Then delete face lock in Settings, or remove the "Glazer face lock" item in Keychain Access.
+The uninstall command does all of this, and removes the face lock item too.
 </details>
 
 ## Roadmap
@@ -248,7 +254,7 @@ Then delete face lock in Settings, or remove the "Glazer face lock" item in Keyc
 - [x] Head direction from the camera, following only the person at the Mac
 - [x] Calibration, and moving the pointer and keyboard focus
 - [x] Low-light detection
-- [x] Face lock, stored in the Keychain behind Touch ID
+- [x] Face lock, stored in the login keychain, set up and deleted with Touch ID
 - [x] One-line install from GitHub releases, universal for Apple silicon and Intel
 - [ ] Developer ID signing and notarisation, Homebrew cask
 - [ ] Three or more displays in a row, and stacked displays

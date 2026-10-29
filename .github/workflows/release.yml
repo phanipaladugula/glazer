@@ -54,6 +54,8 @@ jobs:
         run: |
           if [[ -n "$SIGNING_P12" ]]; then
             Scripts/signing.sh import-ci >> "$GITHUB_ENV"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "::warning::Publishing a release signed ad hoc. Users will be asked for Keychain access and lose permissions on update. Add SIGNING_P12 and SIGNING_P12_PASSWORD (see Scripts/signing.sh)."
           else
             echo "No signing identity in this repository's secrets; signing ad hoc."
           fi

@@ -137,5 +137,6 @@ camera or a lighting setup without the app.
 
 The package builds with only the Command Line Tools ([ADR 0002](adr/0002-swift-package-without-xcode.md)).
 `Scripts/bundle.sh` wraps the executable in `Glazer.app` with `Resources/Info.plist`, and
-signs it ad hoc with the hardened runtime and `Resources/Glazer.entitlements`, which
-declares the camera.
+signs it with the hardened runtime and `Resources/Glazer.entitlements`, which declares the
+camera. It signs with Glazer's signing identity when one is configured, so every build has
+the same identity, and ad hoc otherwise ([Releasing › Signing](RELEASING.md#signing)).
