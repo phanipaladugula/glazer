@@ -38,3 +38,19 @@ struct FrameAnalyzerTests {
         #expect(frame.timestamp == 3)
     }
 }
+
+@Suite("FrameAnalyzer, hands")
+struct FrameAnalyzerHandTests {
+    @Test("Hands are looked for only when asked, and an empty image has none")
+    func noHands() throws {
+        let image = try FrameAnalyzerTests().image(luma: 120)
+
+        #expect(FrameAnalyzer().analyze(image, at: 0, includeSignatures: false, includeHands: true).hand == nil)
+        #expect(FrameAnalyzer().analyze(image, at: 0, includeSignatures: false).hand == nil)
+    }
+
+    @Test("No observations give no hand")
+    func noObservations() {
+        #expect(FrameAnalyzer.nearestHand(in: [], imageSize: CGSize(width: 1280, height: 720)) == nil)
+    }
+}

@@ -15,16 +15,30 @@ struct FrameAnalyzer: Sendable {
     /// hair, clothes and background, which aren't who someone is, sway the comparison.
     private let signatureCropPadding = 0.0
 
-    func analyze(_ pixelBuffer: CVPixelBuffer, at timestamp: TimeInterval, includeSignatures: Bool) -> Frame {
+    /// The least share of the image height a palm must cover to be read. Smaller hands are
+    /// usually someone further back, and their joints are too few pixels apart to trust.
+    static let minimumPalmSize = 0.04
+
+    /// The least confidence for a joint to be used. Low, because in a fist the fingertips
+    /// are hidden behind the knuckles and Vision places them with little confidence, yet
+    /// roughly in the right place, which is all the shape measures need.
+    static let minimumJointConfidence: VNConfidence = 0.1
+
+    func analyze(
+        _ pixelBuffer: CVPixelBuffer, at timestamp: TimeInterval, includeSignatures: Bool, includeHands: Bool = false
+    ) -> Frame {
         let brightness = Self.brightness(of: pixelBuffer)
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up)
 
         let detection = VNDetectFaceRectanglesRequest()
         detection.revision = VNDetectFaceRectanglesRequestRevision3
+        let hands = VNDetectHumanHandPoseRequest()
+        hands.maximumHandCount = 2
         do {
-            try handler.perform([detection])
+            // One call, so Vision can share work between the two.
+            try handler.perform(includeHands ? [detection, hands] : [detection])
         } catch {
-            Logger.vision.error("Face detection failed: \(error)")
+            Logger.vision.error("Face or hand detection failed: \(error)")
             return Frame(timestamp: timestamp, faces: [], brightness: brightness)
         }
 
@@ -44,7 +58,56 @@ struct FrameAnalyzer: Sendable {
                 signature: signature
             )
         }
-        return Frame(timestamp: timestamp, faces: faces, brightness: brightness)
+        let size = CGSize(width: CVPixelBufferGetWidth(pixelBuffer), height: CVPixelBufferGetHeight(pixelBuffer))
+        let hand = includeHands ? Self.nearestHand(in: hands.results ?? [], imageSize: size) : nil
+        return Frame(timestamp: timestamp, faces: faces, brightness: brightness, hand: hand)
+    }
+
+    /// The biggest readable hand, which is almost always the user's raised one.
+    static func nearestHand(in observations: [VNHumanHandPoseObservation], imageSize: CGSize) -> HandReading? {
+        observations
+            .compactMap { reading(of: $0, imageSize: imageSize) }
+            .filter { $0.size >= minimumPalmSize }
+            .max { $0.size < $1.size }
+    }
+
+    private static let fingerJoints: [[VNHumanHandPoseObservation.JointName]] = [
+        [.indexMCP, .indexPIP, .indexDIP, .indexTip],
+        [.middleMCP, .middlePIP, .middleDIP, .middleTip],
+        [.ringMCP, .ringPIP, .ringDIP, .ringTip],
+        [.littleMCP, .littlePIP, .littleDIP, .littleTip],
+    ]
+
+    private static func reading(of observation: VNHumanHandPoseObservation, imageSize: CGSize) -> HandReading? {
+        guard let points = try? observation.recognizedPoints(.all) else { return nil }
+
+        // Vision's points are normalised with the origin at the bottom left. Pixels keep
+        // lengths true whatever the image's shape.
+        func pixel(_ name: VNHumanHandPoseObservation.JointName) -> CGPoint? {
+            guard let point = points[name], point.confidence >= minimumJointConfidence else { return nil }
+            return CGPoint(x: point.location.x * imageSize.width, y: point.location.y * imageSize.height)
+        }
+
+        guard let wrist = pixel(.wrist) else { return nil }
+        let fingers = fingerJoints.compactMap { names -> HandJoints.Finger? in
+            let joints = names.compactMap(pixel)
+            guard joints.count == 4 else { return nil }
+            return HandJoints.Finger(knuckle: joints[0], middle: joints[1], top: joints[2], tip: joints[3])
+        }
+        let hand = HandJoints(wrist: wrist, fingers: fingers)
+        guard let features = hand.features, imageSize.height > 0 else { return nil }
+
+        let knuckles = fingers.map(\.knuckle) + [wrist]
+        let centre = CGPoint(
+            x: knuckles.map(\.x).reduce(0, +) / CGFloat(knuckles.count) / imageSize.width,
+            y: knuckles.map(\.y).reduce(0, +) / CGFloat(knuckles.count) / imageSize.height
+        )
+        return HandReading(
+            features: features,
+            centre: centre,
+            size: hand.palmLength / Double(imageSize.height),
+            confidence: Double(observation.confidence)
+        )
     }
 
     /// An image feature print of the face, as a ``FaceSignature``.

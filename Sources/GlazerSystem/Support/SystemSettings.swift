@@ -5,6 +5,7 @@ public enum SystemSettings {
     public enum Pane: String, Sendable {
         case camera = "Privacy_Camera"
         case accessibility = "Privacy_Accessibility"
+        case screenRecording = "Privacy_ScreenCapture"
         case loginItems = "LoginItems"
     }
 
@@ -12,7 +13,7 @@ public enum SystemSettings {
     public static func open(_ pane: Pane) {
         let address =
             switch pane {
-            case .camera, .accessibility:
+            case .camera, .accessibility, .screenRecording:
                 "x-apple.systempreferences:com.apple.preference.security?\(pane.rawValue)"
             case .loginItems:
                 "x-apple.systempreferences:com.apple.LoginItems-Settings.extension"
