@@ -17,30 +17,29 @@ public final class FocusController {
 
     public init() {}
 
-    /// Moves the pointer to `display`, back to where it was when the user last left it.
-    /// Does nothing while a mouse button is held, so a drag is never interrupted.
-    public func movePointer(to display: Display.ID, leaving previous: Display.ID?) {
+    /// Moves focus to `display`. Does nothing while a mouse button is held, so a drag is
+    /// never interrupted.
+    public func focus(_ display: Display.ID, leaving previous: Display.ID?) {
         guard NSEvent.pressedMouseButtons == 0 else { return }
 
+        let pointer = Self.pointerLocation()
         if let previous {
-            pointerPositions[previous] = Self.pointerLocation()
+            pointerPositions[previous] = pointer
         }
 
         let bounds = CGDisplayBounds(display)
+        let window = Self.frontmostWindow(on: bounds)
+        if let window {
+            activate(window)
+        }
+
         let target =
             pointerPositions[display].flatMap { bounds.contains($0) ? $0 : nil }
-            ?? Self.frontmostWindow(on: bounds).map { CGPoint(x: $0.bounds.midX, y: $0.bounds.midY) }
+            ?? window.map { CGPoint(x: $0.bounds.midX, y: $0.bounds.midY) }
             ?? CGPoint(x: bounds.midX, y: bounds.midY)
         CGWarpMouseCursorPosition(target)
         // Without this, the pointer pauses for a moment after a warp.
         CGAssociateMouseAndMouseCursorPosition(1)
-    }
-
-    /// Gives keyboard focus to the frontmost window on `display`.
-    public func moveKeyboardFocus(to display: Display.ID) {
-        if let window = Self.frontmostWindow(on: CGDisplayBounds(display)) {
-            activate(window)
-        }
     }
 
     /// Records the pointer's position for its current display, such as when the user

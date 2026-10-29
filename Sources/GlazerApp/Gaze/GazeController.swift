@@ -4,8 +4,8 @@ import GlazerSystem
 import OSLog
 import Observation
 
-/// Runs the camera and the gaze engine, and moves the pointer and keyboard focus as the
-/// ``FocusPolicy`` decides.
+/// Runs the camera and the gaze engine, and moves focus when the engine decides to and the
+/// user isn't typing.
 ///
 /// The camera runs only in one of three modes: following the user, calibrating, or
 /// enrolling face lock. Otherwise it is off.
@@ -30,10 +30,6 @@ final class GazeController {
     /// Set when the camera couldn't start.
     private(set) var cameraFailure: CameraFeed.Failure?
 
-    /// Set when the switch mode needs the keyboard but macOS didn't allow it (no
-    /// Accessibility access). Glazer then moves the pointer and focus together.
-    private(set) var isKeyboardUnavailable = false
-
     struct Diagnostics: Equatable {
         var faceCount = 0
         var rawPose: HeadPose?
@@ -44,8 +40,8 @@ final class GazeController {
 
     @ObservationIgnored let camera = CameraFeed()
     @ObservationIgnored private let focus = FocusController()
-    @ObservationIgnored private let keyboard = KeyboardMonitor()
-    @ObservationIgnored private var policy = FocusPolicy(mode: .immediate, keyboardDisplay: nil)
+    @ObservationIgnored private let typing = TypingMonitor()
+    @ObservationIgnored private var typingGuard = TypingGuard(focusedDisplay: nil)
     @ObservationIgnored private var engine: GazeEngine?
     @ObservationIgnored private var frameHandler: ((Frame, GazeEngine.Output?) -> Void)?
     @ObservationIgnored private var displays: [Display] = []
@@ -55,10 +51,7 @@ final class GazeController {
     // MARK: Modes
 
     /// Follows the user and moves focus between `displays`.
-    func follow(
-        displays: [Display], calibration: Calibration, verifier: IdentityVerifier?, switchDelay: Double,
-        switchMode: SwitchMode
-    ) {
+    func follow(displays: [Display], calibration: Calibration, verifier: IdentityVerifier?, switchDelay: Double) {
         var classification = DisplayClassifier.Configuration()
         classification.dwell = switchDelay
         var engine = GazeEngine(calibration: calibration, verifier: verifier, classification: classification)
@@ -66,7 +59,10 @@ final class GazeController {
         self.displays = displays
         pointerDisplay = Self.displayUnderPointer(in: displays)
         engine.setFocusedDisplay(pointerDisplay)
-        startPolicy(switchMode)
+        typingGuard = TypingGuard(focusedDisplay: pointerDisplay)
+        typing.start { [weak self] timestamp in
+            self?.typingGuard.keyPressed(at: timestamp)
+        }
         start(.following, engine: engine, handler: nil)
     }
 
@@ -84,7 +80,7 @@ final class GazeController {
     func stop() {
         guard mode != .idle else { return }
         camera.stop()
-        keyboard.stop()
+        typing.stop()
         mode = .idle
         engine = nil
         frameHandler = nil
@@ -138,9 +134,7 @@ final class GazeController {
 
         if mode == .following, let output {
             followPointer(output)
-            if let target = output.switchedTo {
-                perform(policy.userFaces(target))
-            }
+            moveFocus(output)
         }
 
         frameHandler?(frame, output)
@@ -154,53 +148,22 @@ final class GazeController {
         pointerDisplay = current
         if current != output.focusedDisplay {
             engine?.setFocusedDisplay(current)
-            policy.userMovedPointer(to: current)
+            typingGuard.userFocused(current)
         }
     }
 
-    // MARK: Focus
-
-    /// Sets up the focus policy, and the keyboard monitor if the mode needs it. Without
-    /// Accessibility access there's no keyboard monitor, so Glazer falls back to moving the
-    /// pointer and focus together.
-    private func startPolicy(_ requested: SwitchMode) {
-        var mode = requested
-        if FocusPolicy(mode: requested, keyboardDisplay: nil).needsKeyboard {
-            keyboard.onKeyDown = { [weak self] timestamp in
-                self?.keyPressed(at: timestamp) ?? .deliver
+    /// Moves focus to the display the user faces, once they aren't typing.
+    private func moveFocus(_ output: GazeEngine.Output) {
+        let now = ProcessInfo.processInfo.systemUptime
+        let target =
+            if let faced = output.switchedTo {
+                typingGuard.userFaces(faced, at: now)
+            } else {
+                typingGuard.release(at: now)
             }
-            keyboard.onHoldKeyChange = { [weak self] isDown in
-                guard let self else { return }
-                perform(policy.holdKeyChanged(isDown: isDown))
-            }
-            if !keyboard.start() {
-                mode = .immediate
-            }
-        } else {
-            keyboard.stop()
-        }
-        isKeyboardUnavailable = mode != requested
-        policy = FocusPolicy(mode: mode, keyboardDisplay: pointerDisplay)
-    }
-
-    private func keyPressed(at timestamp: TimeInterval) -> KeyboardMonitor.Disposition {
-        let actions = policy.keyPressed(at: timestamp)
-        guard !actions.isEmpty else { return .deliver }
-        perform(actions)
-        return .holdForFocusChange
-    }
-
-    private func perform(_ actions: [FocusPolicy.Action]) {
-        for action in actions {
-            switch action {
-            case .movePointer(let display):
-                guard display != pointerDisplay else { continue }
-                focus.movePointer(to: display, leaving: pointerDisplay)
-                pointerDisplay = display
-            case .moveKeyboardFocus(let display):
-                focus.moveKeyboardFocus(to: display)
-            }
-        }
+        guard let target else { return }
+        focus.focus(target, leaving: pointerDisplay)
+        pointerDisplay = target
     }
 
     private func updateDiagnostics(with frame: Frame) {
