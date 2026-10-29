@@ -56,7 +56,7 @@ struct SetupView: View {
         switch step {
         case .welcome:
             SetupPage(
-                symbol: "eye", title: "Welcome to Glazer",
+                symbol: nil, title: "Welcome to Glazer",
                 message: "Look at another display and start typing. Glazer moves the pointer and "
                     + "keyboard focus to where you're looking."
             ) {
@@ -190,23 +190,20 @@ struct SetupView: View {
 // MARK: - Components
 
 private struct SetupPage<Accessory: View>: View {
-    let symbol: String
+    /// The page's symbol, shown in an accent badge. `nil` shows the app icon instead.
+    let symbol: String?
     let title: String
     let message: String
     @ViewBuilder let accessory: Accessory
 
     var body: some View {
         VStack(spacing: 0) {
-            Image(systemName: symbol)
-                .font(.system(size: 30, weight: .medium))
-                .foregroundStyle(.white)
-                .frame(width: 64, height: 64)
-                .background(.tint, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .shadow(color: .accentColor.opacity(0.25), radius: 10, y: 4)
+            badge
+                .frame(height: 76)
 
             Text(title)
                 .font(.system(size: 24, weight: .semibold))
-                .padding(.top, 22)
+                .padding(.top, 16)
             Text(message)
                 .font(.body)
                 .foregroundStyle(.secondary)
@@ -217,6 +214,24 @@ private struct SetupPage<Accessory: View>: View {
             accessory
                 .padding(.top, 26)
             Spacer(minLength: 0)
+        }
+    }
+
+    @ViewBuilder
+    private var badge: some View {
+        if let symbol {
+            Image(systemName: symbol)
+                .font(.system(size: 30, weight: .medium))
+                .foregroundStyle(.white)
+                .frame(width: 64, height: 64)
+                .background(.tint, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: .accentColor.opacity(0.25), radius: 10, y: 4)
+        } else {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 96, height: 96)
+                .accessibilityHidden(true)
         }
     }
 }

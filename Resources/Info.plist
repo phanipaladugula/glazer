@@ -8,6 +8,8 @@
 	<string>Glazer</string>
 	<key>CFBundleExecutable</key>
 	<string>Glazer</string>
+	<key>CFBundleIconFile</key>
+	<string>Glazer</string>
 	<key>CFBundleIdentifier</key>
 	<string>io.github.phanipaladugula.glazer</string>
 	<key>CFBundleInfoDictionaryVersion</key>
