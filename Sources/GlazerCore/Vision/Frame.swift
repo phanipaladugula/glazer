@@ -12,10 +12,15 @@ public struct Frame: Sendable {
     /// The average brightness of the frame, from 0 (black) to 1 (white).
     public let brightness: Double
 
-    public init(timestamp: TimeInterval, faces: [DetectedFace], brightness: Double) {
+    /// The nearest hand in view, on frames where hands were looked for: only while hand
+    /// gestures are on, because finding them costs about as much as finding faces.
+    public let hand: HandReading?
+
+    public init(timestamp: TimeInterval, faces: [DetectedFace], brightness: Double, hand: HandReading? = nil) {
         self.timestamp = timestamp
         self.faces = faces
         self.brightness = brightness
+        self.hand = hand
     }
 }
 

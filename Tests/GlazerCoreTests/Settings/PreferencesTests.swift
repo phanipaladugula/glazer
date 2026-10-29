@@ -59,3 +59,29 @@ struct PreferencesWriteTests {
         #expect(reloaded.switchDelay == 0.9)
     }
 }
+
+@Suite("Preferences, gestures")
+struct GesturePreferencesTests {
+    @Test("Gestures start off, with no hand calibration")
+    func defaults() {
+        let preferences = Preferences(store: MemoryStore())
+
+        #expect(!preferences.gesturesEnabled)
+        #expect(preferences.handCalibration == nil)
+    }
+
+    @Test("Gestures and the hand calibration persist")
+    func persists() {
+        let store = MemoryStore()
+        let preferences = Preferences(store: store)
+        preferences.gesturesEnabled = true
+        preferences.handCalibration = Hands.calibration
+
+        let reloaded = Preferences(store: store)
+        #expect(reloaded.gesturesEnabled)
+        #expect(reloaded.handCalibration == Hands.calibration)
+
+        reloaded.handCalibration = nil
+        #expect(Preferences(store: store).handCalibration == nil)
+    }
+}
