@@ -32,7 +32,7 @@ network requests. See [Privacy](docs/PRIVACY.md).
 
 ## Install
 
-Glazer needs macOS 14 Sonoma or later.
+Glazer needs macOS 15 Sequoia or later.
 
 Signed releases are coming with version 0.1. Until then, build it from source:
 
