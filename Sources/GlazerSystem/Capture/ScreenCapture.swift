@@ -27,9 +27,13 @@ public enum ScreenCapture {
 
     /// An image of everything on `displayID` at full resolution, without the pointer and
     /// without Glazer's own windows.
+    ///
+    /// It doesn't check ``ScreenCaptureAccess/isGranted`` first: macOS answers that from
+    /// when Glazer started, so it stays `false` after the user allows Screen Recording
+    /// until Glazer restarts, while capturing may already work. Trying is the only true
+    /// test, and fails with ``Failure/notAllowed`` when it doesn't.
     @MainActor
     public static func image(of displayID: CGDirectDisplayID) async throws(Failure) -> CGImage {
-        guard ScreenCaptureAccess.isGranted else { throw .notAllowed }
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
             guard let display = content.displays.first(where: { $0.displayID == displayID }) else {
@@ -50,6 +54,10 @@ public enum ScreenCapture {
             return try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
         } catch let failure as Failure {
             throw failure
+        } catch let error as NSError
+            where error.domain == SCStreamErrorDomain && error.code == SCStreamError.userDeclined.rawValue
+        {
+            throw .notAllowed
         } catch {
             Logger.capture.error("Screenshot failed: \(error, privacy: .public)")
             throw .failed(error.localizedDescription)

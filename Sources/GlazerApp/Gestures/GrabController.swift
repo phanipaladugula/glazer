@@ -17,6 +17,10 @@ final class GrabController {
     }
 
     private let overlay = GrabOverlay()
+    /// Told when a screenshot was taken, which proves Screen Recording is allowed.
+    var onCaptured: (() -> Void)?
+    /// Told when macOS refused the screenshot because Screen Recording isn't allowed.
+    var onNotAllowed: (() -> Void)?
     /// The screenshot being taken or held, from the grab until the drop or a cancel.
     private var held: Task<Screenshot?, Never>?
     /// The display the user faces now, where the held screenshot follows them.
@@ -53,6 +57,7 @@ final class GrabController {
                     return (png, try ScreenshotStore.save(png: png))
                 }.value
                 ScreenshotStore.copy(image, png: png)
+                onCaptured?()
                 GrabFeedback.playShutter()
                 if let screen = screen(of: display) {
                     overlay.flash(screen.frame)
@@ -67,6 +72,17 @@ final class GrabController {
                 Logger.gestures.error("Grab failed: \(String(describing: error), privacy: .public)")
                 NSSound.beep()
                 held = nil
+                // Say why where the user is looking, rather than failing silently.
+                if let frame = frame(of: display) {
+                    if case .notAllowed = error as? ScreenCapture.Failure {
+                        onNotAllowed?()
+                        overlay.showMessage(
+                            "Glazer needs Screen Recording to take screenshots. Allow it in System Settings, "
+                                + "then reopen Glazer.", on: frame)
+                    } else {
+                        overlay.showMessage("The screenshot couldn't be taken. Try again.", on: frame)
+                    }
+                }
                 return nil
             }
         }

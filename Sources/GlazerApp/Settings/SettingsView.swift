@@ -336,14 +336,20 @@ private struct GestureSettings: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    PermissionRow(
-                        title: "Screen Recording",
-                        isGranted: model.hasScreenCaptureAccess,
-                        action: {
-                            ScreenCaptureAccess.request()
-                            SystemSettings.open(.screenRecording)
+                    LabeledContent("Screen Recording") {
+                        if model.hasScreenCaptureAccess {
+                            Label("Allowed", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        } else {
+                            HStack(spacing: 8) {
+                                Button("Allow…") {
+                                    ScreenCaptureAccess.request()
+                                    SystemSettings.open(.screenRecording)
+                                }
+                                Button("Reopen Glazer") { model.relaunch() }
+                            }
                         }
-                    )
+                    }
                 }
             } footer: {
                 Text(footer)
@@ -379,8 +385,8 @@ private struct GestureSettings: View {
         case .needsHandCalibration:
             "Calibrate your hand to start. It takes about 15 seconds."
         case .needsScreenRecording:
-            "Allow Screen Recording so Glazer can take the screenshot. "
-                + "macOS may ask you to quit and reopen Glazer afterwards."
+            "Allow Screen Recording so Glazer can take the screenshot, then reopen Glazer: "
+                + "macOS applies it only when Glazer starts."
         case nil:
             model.gesturesEnabled
                 ? "On. Glazer watches for your hand while it follows you."
@@ -460,7 +466,7 @@ private struct DiagnosticsSettings: View {
                     Reading("Head yaw", value: degrees(output?.pose?.yaw ?? diagnostics.rawPose?.yaw))
                     Reading("Head pitch", value: degrees(output?.pose?.pitch ?? diagnostics.rawPose?.pitch))
                     Reading("Display in focus", value: displayName(output?.focusedDisplay))
-                    if model.gesturesEnabled, model.gestureIssue == nil {
+                    if model.watchesHands {
                         Reading(
                             "Hand openness",
                             value: diagnostics.handOpenness.map { $0.formatted(.percent.precision(.fractionLength(0))) }

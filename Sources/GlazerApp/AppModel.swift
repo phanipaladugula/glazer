@@ -118,6 +118,13 @@ final class AppModel {
         return nil
     }
 
+    /// Whether the camera watches for hand gestures. Screen Recording isn't required for
+    /// that: macOS reports it allowed only after Glazer restarts, so a grab tries anyway
+    /// and says so if macOS refuses.
+    var watchesHands: Bool {
+        gesturesEnabled && switchingMethod.usesCamera && handCalibration != nil
+    }
+
     enum GestureIssue: Equatable {
         /// Gestures are seen by the camera, which isn't used when switching by shortcut only.
         case needsCamera
@@ -214,6 +221,8 @@ final class AppModel {
         // Only whether a template exists: that never makes macOS ask for the Keychain.
         faceLock = vault.hasTemplate ? .stored : .off
         gaze.onGesture = { [weak self] gesture in self?.grabs.handle(gesture) }
+        grabs.onCaptured = { [weak self] in self?.hasScreenCaptureAccess = true }
+        grabs.onNotAllowed = { [weak self] in self?.hasScreenCaptureAccess = false }
         registerToggleShortcut()
         observeDisplays()
         observeFacedDisplay()
@@ -292,7 +301,8 @@ final class AppModel {
     func refreshPermissions() {
         let camera = CameraAccess.current
         let accessibility = AccessibilityAccess.isGranted
-        let screenCapture = ScreenCaptureAccess.isGranted
+        // A screenshot that worked proves access even while macOS still reports it missing.
+        let screenCapture = ScreenCaptureAccess.isGranted || hasScreenCaptureAccess
         guard
             camera != cameraAccess || accessibility != hasAccessibilityAccess
                 || screenCapture != hasScreenCaptureAccess
@@ -393,6 +403,24 @@ final class AppModel {
 
     // MARK: Hand gestures
 
+    /// Quits and opens Glazer again, so macOS applies a permission it grants only at
+    /// launch, such as Screen Recording.
+    func relaunch() {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        // The shell outlives Glazer, waits for it to quit, then opens it again.
+        process.arguments = [
+            "-c", "while kill -0 \"$1\" 2>/dev/null; do sleep 0.2; done; /usr/bin/open \"$0\"",
+            Bundle.main.bundleURL.path, String(ProcessInfo.processInfo.processIdentifier),
+        ]
+        do {
+            try process.run()
+            NSApp.terminate(nil)
+        } catch {
+            Logger.app.error("Couldn't reopen Glazer: \(error, privacy: .public)")
+        }
+    }
+
     /// Starts the camera for hand calibration. Call ``finishHandCalibration(with:)`` or
     /// ``cancelHandCalibration()`` to end it.
     func beginHandCalibration(onFrame: @escaping (Frame) -> Void) {
@@ -469,8 +497,7 @@ final class AppModel {
         if followsWithCamera, calibration != nil {
             loadFaceTemplateIfNeeded()
         }
-        gaze.setGestures(
-            gestureIssue == nil && gesturesEnabled ? handCalibration : nil, aim: aimsWithHand ? handAim : nil)
+        gaze.setGestures(watchesHands ? handCalibration : nil, aim: aimsWithHand ? handAim : nil)
         if followsWithCamera, attention == nil, let calibration {
             gaze.follow(displays: displays, calibration: calibration, verifier: verifier, switchDelay: switchDelay)
         } else {

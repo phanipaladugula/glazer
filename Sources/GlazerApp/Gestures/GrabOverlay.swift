@@ -9,6 +9,8 @@ import SwiftUI
 final class GrabOverlay {
     private var thumbnail: NSPanel?
     private var flashWindow: NSWindow?
+    private var message: NSPanel?
+    private var messageTask: Task<Void, Never>?
 
     private static let thumbnailWidth: CGFloat = 232
     private static let margin: CGFloat = 16
@@ -73,6 +75,26 @@ final class GrabOverlay {
         }
     }
 
+    /// Shows `text` in the top right of `visibleFrame` for a few seconds, such as why a
+    /// grab didn't work.
+    func showMessage(_ text: String, on visibleFrame: CGRect) {
+        messageTask?.cancel()
+        message?.orderOut(nil)
+        let host = NSHostingView(rootView: GestureMessage(text: text, width: Self.thumbnailWidth + 40))
+        let size = host.fittingSize
+        let panel = Self.overlayWindow(frame: CGRect(origin: .zero, size: size))
+        panel.contentView = host
+        panel.setFrameOrigin(Self.origin(for: size, in: visibleFrame))
+        panel.orderFrontRegardless()
+        message = panel
+        messageTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(6))
+            guard !Task.isCancelled else { return }
+            self?.message?.orderOut(nil)
+            self?.message = nil
+        }
+    }
+
     private static func origin(for size: CGSize, in visibleFrame: CGRect) -> CGPoint {
         CGPoint(x: visibleFrame.maxX - size.width - margin, y: visibleFrame.maxY - size.height - margin)
     }
@@ -89,6 +111,29 @@ final class GrabOverlay {
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         return panel
+    }
+}
+
+/// A short note about a gesture, such as why it didn't work.
+private struct GestureMessage: View {
+    let text: String
+    let width: CGFloat
+
+    var body: some View {
+        Label {
+            Text(text)
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.yellow)
+        }
+        .font(.callout)
+        .padding(14)
+        .frame(width: width, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.separator, lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.2), radius: 12, y: 4)
+        .padding(16)
     }
 }
 
