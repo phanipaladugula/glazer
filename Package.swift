@@ -7,6 +7,9 @@ let package = Package(
     platforms: [
         .macOS(.v14)
     ],
+    products: [
+        .executable(name: "Glazer", targets: ["GlazerApp"])
+    ],
     targets: [
         // Pure logic. No AppKit, no camera, no UI. Everything here is unit-tested.
         .target(
@@ -16,6 +19,11 @@ let package = Package(
         .target(
             name: "GlazerSystem",
             dependencies: ["GlazerCore"]
+        ),
+        // The menu bar app: lifecycle, state and SwiftUI views.
+        .executableTarget(
+            name: "GlazerApp",
+            dependencies: ["GlazerCore", "GlazerSystem"]
         ),
         .testTarget(
             name: "GlazerCoreTests",
