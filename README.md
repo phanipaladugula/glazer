@@ -30,6 +30,7 @@ Look at the other screen and start typing. Glazer moves the pointer and keyboard
 - [Getting started](#getting-started)
 - [Switch with a shortcut](#switch-with-a-shortcut)
 - [Grab and drop screenshots](#grab-and-drop-screenshots)
+- [Linked Macs](#linked-macs)
 - [Face lock](#face-lock)
 - [Troubleshooting](#troubleshooting)
 - [Roadmap](#roadmap)
@@ -46,7 +47,7 @@ step. Turn to the other display and keep typing.
 - **Follows only you.** It ignores people walking past or sitting behind you. With face lock on, it follows only your face.
 - **Ignores glances.** A switch happens only after you've faced the other display for a moment, and looking down at your phone changes nothing.
 - **Never switches while you type.** Keep typing while you look at notes or talk to someone, and your words stay put. Pause for a second while facing the other display, and it's ready for you.
-- **Private by design.** Everything runs on your Mac. No video is recorded and nothing goes over the network.
+- **Private by design.** Everything runs on your Mac. No video is recorded and nothing goes to the internet. Linked Macs talk only on your local network, encrypted, and only once you pair them.
 - **Native and light.** A small menu bar app built with Apple frameworks only, using about 12 camera frames a second, and the camera stays off when it isn't needed.
 
 <p align="center">
@@ -75,7 +76,7 @@ Glazer uses your camera, so it holds itself to a strict standard:
 
 | | |
 |---|---|
-| **On your Mac only** | Frames are analysed with Apple's Vision framework and discarded immediately. Glazer makes no network requests at all. |
+| **On your Mac only** | Frames are analysed with Apple's Vision framework and discarded immediately. Glazer never connects to the internet. With Linked Macs on, it talks to your paired Macs on the local network, encrypted; otherwise it uses no network at all. |
 | **No recordings** | No video, photos or screenshots are ever saved. Window titles and screen contents are never read. |
 | **Camera off when idle** | The camera runs only while Glazer is on, set to follow where you look, and you have two displays. Switching by key never turns it on. The camera light always tells you. |
 | **Face lock in the Keychain** | Your face signature is a list of numbers, not a photo. It's kept in your login keychain and never synced to iCloud, and setting it up or deleting it in Glazer needs Touch ID. |
@@ -215,6 +216,34 @@ Gestures need **Screen Recording** permission to take the screenshot.
 To check how well the camera reads your hand, run `swift run glazer-camera-check --hands`
 and open and close it: it prints how open the hand looks, from 0% to 100%.
 
+## Linked Macs
+
+> [!NOTE]
+> Linked Macs are **experimental**, and off until you turn them on in **Settings ›
+> Linked Macs**. Glazer must be running on both Macs, following you with the camera and
+> calibrated.
+
+Use two Macs, such as a laptop beside a desktop, as one:
+
+- **Look at the other Mac** and the keyboard and mouse in front of you control it. Look
+  back and they're here again. A short note in the corner says where they went. Either
+  Mac's keyboard works this way.
+- **The clipboard comes along:** copy on one Mac, look at the other, paste.
+- **Grab and drop between Macs:** grab a screenshot on one Mac, turn to the other, open
+  your hand, and it's pasted or shown there.
+- **The switch shortcut** moves through this Mac's displays, then the linked Macs, then
+  back.
+
+To pair, turn on Linked Macs on both, then click **Pair…** next to the other Mac. Both
+Macs show the same six-digit code; check it matches and click **Pair** on each. Each Mac
+works out whether you're looking at it with its own camera and its own calibration, so
+the Macs never have to be calibrated against each other, and a laptop on its own counts.
+
+Everything between linked Macs is encrypted with a key made when you paired them, and
+only paired Macs can connect. Nothing leaves your local network.
+[ADR 0010](docs/adr/0010-link-macs-on-the-local-network.md) explains the design, its
+security and its limits.
+
 ## Face lock
 
 <img src="docs/images/screenshots/face-lock.png" width="300" align="right" alt="Face lock setup: a camera circle ringed by progress ticks.">
@@ -323,6 +352,7 @@ The uninstall command does all of this, and removes the face lock item too.
 - [x] Calibration at the centre and corners of each display, and moving the pointer and keyboard focus
 - [x] Switching with a keyboard shortcut, with or without the camera
 - [x] Grab a screenshot with your hand and drop it on another display (experimental)
+- [x] Linked Macs: look at another Mac to use its keyboard and mouse, share the clipboard, drop screenshots across (experimental)
 - [x] Releases signed with Glazer's own certificate, so updates keep their permissions
 - [x] Low-light detection
 - [x] Face lock, stored in the login keychain, set up and deleted with Touch ID

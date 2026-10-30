@@ -5,7 +5,9 @@ can be checked in the source code.
 
 ## Summary
 
-- Everything happens on your Mac. Glazer makes **no network requests** of any kind.
+- Everything happens on your Mac. Glazer **never connects to the internet**. With Linked
+  Macs off, which is the default, it uses no network at all; with them on, it talks only
+  to Macs you paired, on your local network, encrypted.
 - Camera frames are analysed and **discarded immediately**. Nothing is recorded or saved.
 - The camera runs **only when needed**, and the camera light always shows when it does.
 - Face lock keeps a **face signature, not a photo**, in your Keychain, and only if you set it up.
@@ -72,11 +74,32 @@ Hand gestures are off unless you turn them on in **Settings › Gestures**. With
 
 Your screenshots are yours: Glazer doesn't keep a list of them or delete them.
 
+## Linked Macs and the network
+
+Linked Macs are off unless you turn them on in **Settings › Linked Macs**. With them on:
+
+- **Discovery.** Glazer advertises itself on your local network with Bonjour, under a
+  random ID made for this Mac, with the Mac's name. Other Macs running Glazer with
+  linking on can see that name. macOS asks once for Local Network access.
+- **Pairing** happens only when you start it and confirm a matching six-digit code on
+  both Macs. Each Mac then keeps a key for the other in its login Keychain.
+- **Links** are TLS connections keyed by that key, so only paired Macs can connect.
+  They carry: whether you're facing each Mac (yes or no, and how many degrees from its
+  displays, never your face or any image); your keyboard and mouse events while you
+  look at the other Mac; the clipboard when control moves, if you allow it; and a
+  screenshot you grab and drop there.
+- **Key presses** go to the other Mac only while you're looking at it. Glazer doesn't
+  record them or keep them, here or there.
+- **Unpairing** on either Mac deletes the key on both.
+
+Nothing goes beyond your local network, and nothing is ever sent to anyone else.
+
 ## What Glazer stores
 
 | What | Where | Contains |
 |---|---|---|
 | Settings | User defaults (`io.github.phanipaladugula.glazer`) | On/off, setup done, how you switch and with which shortcut, switch delay, the head angles calibrated at the centre and corners of each display, whether hand gestures are on, and your hand calibration: six numbers for your open hand and fist and how much they vary, and, for each display, where you hold your hand relative to your face (two numbers) |
+| Paired Macs | Your login Keychain, items "Glazer linked Mac: …" | Each paired Mac's ID, name and the key shared with it |
 | Screenshots you grab | Your screenshots folder, and the clipboard | The screen of the display you faced when you grabbed |
 | Face lock template | Your login Keychain, item "Glazer face lock" | Face signatures from setup, and the match threshold learned from them |
 
@@ -100,7 +123,7 @@ The face lock template is biometric data, so it gets extra protection:
 ## What Glazer never does
 
 - Record, save or upload video or photos, or take a screenshot you didn't grab.
-- Connect to the internet. There is no analytics, crash reporting, update check or
+- Connect to the internet, or to any Mac you didn't pair. There is no analytics, crash reporting, update check or
   telemetry.
 - Read which keys you press or what you type.
 - Read window titles. To find the window to focus, Glazer reads only window positions and
@@ -117,6 +140,7 @@ The face lock template is biometric data, so it gets extra protection:
 | Accessibility | To bring the window you last used on a display to the front, and to know when you're typing | Glazer pauses, since it could otherwise move the pointer but send your typing to the other display |
 | Touch ID or password | To confirm it's you before face lock is set up or deleted in Glazer | Face lock can't be set up |
 | Keychain access | macOS asks when an app reads the face lock item. Choose **Always Allow** | Face lock pauses Glazer until allowed |
+| Local Network | Only for Linked Macs, to find and link with your other Macs | Linked Macs can't find each other |
 | Screen Recording | Only for hand gestures, to take the screenshot you grab. Asked for when you turn gestures on | Gestures stay off |
 
 ## Removing everything
@@ -138,12 +162,14 @@ The face lock template is biometric data, so it gets extra protection:
 Camera access lives in `Sources/GlazerSystem/Camera` and `Sources/GlazerSystem/Vision`.
 Keyboard monitoring is in `Sources/GlazerSystem/Focus`, and shortcuts in
 `Sources/GlazerSystem/HotKey`.
-Keychain storage is in `Sources/GlazerSystem/Security`. Nothing in the package imports
-networking APIs. You can check with:
+Keychain storage is in `Sources/GlazerSystem/Security`. All networking is in
+`Sources/GlazerSystem/Link`, for Linked Macs, and uses only Bonjour and TLS connections
+to paired Macs. You can check nothing else connects with:
 
 ```sh
-grep -rnE "URLSession|Network|NWConnection|CFSocket" Sources
+grep -rlnE "URLSession|Network|NWConnection|CFSocket" Sources
 ```
 
-It finds nothing. The Privacy tab's link to this page hands the address to your browser;
-Glazer itself never connects.
+It lists only files in `Sources/GlazerSystem/Link`. There is no `URLSession`: Glazer
+never makes a web request. The Privacy tab's link to this page hands the address to your
+browser; Glazer itself never connects.

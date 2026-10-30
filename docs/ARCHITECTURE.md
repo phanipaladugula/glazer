@@ -19,8 +19,10 @@ GlazerCore     Pure decision logic and value types. No AppKit, no hardware
 - **Adapters are thin.** `GlazerSystem` turns macOS into those values, and turns
   decisions back into actions. Each adapter does one job with little logic, so there is
   little in it to get wrong.
-- **Everything stays on the Mac.** Nothing in the package imports networking APIs. Camera
-  frames are analysed and dropped, and the face template lives only in the Keychain.
+- **Everything stays on the Mac.** Camera frames are analysed and dropped, and the face
+  template lives only in the Keychain. The only networking is Linked Macs, in
+  `GlazerSystem/Link`: Bonjour and TLS to paired Macs on the local network, never the
+  internet ([ADR 0010](adr/0010-link-macs-on-the-local-network.md)).
 - **No third-party dependencies.** Only Apple frameworks, so the whole app can be audited
   ([ADR 0003](adr/0003-no-third-party-dependencies.md)).
 
@@ -81,6 +83,7 @@ doesn't pull it straight back.
 | `Display/` | `Display`, `DisplayLayout`, lookup by point, reading order, `Placement` (centre a window on a display) |
 | `Settings/` | `Preferences`: on/off, setup state, switching method and key, switch delay, calibration |
 | `Models/` | `KeyboardShortcut`, with the rules for a switch shortcut |
+| `Link/` | `PairingSession` (key exchange confirmed by a six-digit code), `LinkMessage` and `LinkFrame`, `LinkProof`, `LinkArbiter` (which Mac the user is at), `Presence`, `InputEvent` and `HeldInput`, `ClipboardContents` |
 | `Gestures/` | `HandJoints` and `HandFeatures` (how open a hand is, scale-free), `HandCalibration` and its recorder, `UserHand` (which hand is the user's, and where to look for it), `HandAim` and its recorder (which display the hand is held towards), `GrabDetector` (grab and drop), `DisplayHistory` |
 
 ### GlazerSystem
@@ -88,6 +91,7 @@ doesn't pull it straight back.
 | Area | Contents |
 |---|---|
 | `Camera/` | `CameraFeed`, `CameraAccess` |
+| `Link/` | `LinkService` (Bonjour, pairing channel, TLS links), `PairingAttempt`, `LinkConnection`, `PeerStore` (Keychain), `InputForwarder` (event tap), `InputReplayer`, `ClipboardBridge` |
 | `Capture/` | `ScreenCapture` (one display, with ScreenCaptureKit), `ScreenCaptureAccess`, `ScreenshotStore` (saves and copies) |
 | `Vision/` | `FrameAnalyzer` |
 | `Security/` | `FaceVault` (Keychain), `OwnerAuthentication` (Touch ID or password) |
@@ -105,9 +109,10 @@ doesn't pull it straight back.
 | `Gaze/` | `GazeController`: runs the camera and the engine, and moves focus |
 | `Calibration/` | Full-screen overlays with the dots to click, and the calibration session |
 | `FaceLock/` | Face lock setup, with a live camera preview |
+| `Link/` | `LinkController`: runs the link, decides where the user is, forwards input, carries the clipboard and screenshots; `PairingWindow` |
 | `Gestures/` | `GrabController` (screenshot on a grab; paste or open on the drop), `GrabOverlay` (flash, held thumbnail and messages), `ScreenshotWindows` (a dropped screenshot on its display), hand calibration window |
 | `Setup/` | The first-run setup window |
-| `Settings/` | General, Displays, Face Lock, Gestures, Privacy and Diagnostics tabs |
+| `Settings/` | General, Displays, Face Lock, Gestures, Linked Macs, Privacy and Diagnostics tabs |
 | `Views/` | Menu bar icon, panel, display map, and `ConditionPresentation` (every state's copy and icon) |
 
 The interface follows the [design spec](design/README.md).

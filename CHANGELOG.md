@@ -8,6 +8,12 @@ All notable changes to Glazer are recorded here. The format follows
 
 ### Added
 
+- **Linked Macs** (experimental). Pair Macs on the same network by checking a six-digit
+  code on both. Then look at the other Mac to use it with the keyboard and mouse in front
+  of you, bring the clipboard along, and grab a screenshot on one Mac to drop on the
+  other. Links are encrypted and only paired Macs can connect; nothing leaves the local
+  network. Turn it on in **Settings › Linked Macs**.
+
 - **Grab and drop screenshots with your hand** (experimental). Facing a display, close
   your open hand into a fist: Glazer takes a screenshot of that display, saves it with
   your screenshots and copies it. Turn to another display and open your hand: if the

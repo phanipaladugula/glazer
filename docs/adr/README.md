@@ -15,3 +15,4 @@ old one.
 | [0007](0007-calibrate-centre-and-corners.md) | Calibrate the centre and corners of each display | Accepted |
 | [0008](0008-switch-with-a-keyboard-shortcut.md) | Switch displays with a keyboard shortcut | Accepted |
 | [0009](0009-grab-and-drop-with-hand-gestures.md) | Grab and drop screenshots with hand gestures | Accepted |
+| [0010](0010-link-macs-on-the-local-network.md) | Link Macs on the local network | Accepted |
