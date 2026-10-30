@@ -16,12 +16,14 @@ struct SettingsView: View {
                 .tabItem { Label("Face Lock", systemImage: "faceid") }
             GestureSettings(model: model)
                 .tabItem { Label("Gestures", systemImage: "hand.raised") }
+            LinkedMacsSettings(model: model)
+                .tabItem { Label("Linked Macs", systemImage: "laptopcomputer.and.iphone") }
             PrivacySettings()
                 .tabItem { Label("Privacy", systemImage: "hand.raised") }
             DiagnosticsSettings(model: model)
                 .tabItem { Label("Diagnostics", systemImage: "waveform.path.ecg") }
         }
-        .frame(width: 520)
+        .frame(width: 580)
         .task {
             while !Task.isCancelled {
                 model.refreshPermissions()
@@ -395,6 +397,107 @@ private struct GestureSettings: View {
     }
 }
 
+// MARK: - Linked Macs
+
+private struct LinkedMacsSettings: View {
+    @Bindable var model: AppModel
+
+    private var link: LinkController {
+        model.link
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle(isOn: $model.linkingEnabled) {
+                    HStack(spacing: 6) {
+                        Text("Link with other Macs on this network")
+                        ExperimentalBadge()
+                    }
+                }
+            } footer: {
+                Text(
+                    model.linkingEnabled
+                        ? "This Mac appears to other Macs running Glazer as “\(model.linkIdentity.name)”."
+                        : "Look at another Mac to use it with the keyboard and mouse in front of you, and grab a "
+                            + "screenshot on one Mac to drop on the other. Glazer must be running on both.")
+            }
+
+            if model.linkingEnabled {
+                Section("Paired") {
+                    if link.paired.isEmpty {
+                        Text("No Macs paired yet.")
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(link.paired, id: \.identity.id) { peer in
+                        LabeledContent {
+                            HStack(spacing: 10) {
+                                status(of: peer.identity)
+                                Button("Unpair") { link.unpair(peer.identity.id) }
+                            }
+                        } label: {
+                            Label(peer.identity.name, systemImage: "laptopcomputer")
+                        }
+                    }
+                }
+
+                Section {
+                    if link.nearby.isEmpty {
+                        HStack(spacing: 8) {
+                            ProgressView().controlSize(.small)
+                            Text("Looking for Macs running Glazer with linking on…")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    ForEach(link.nearby) { mac in
+                        LabeledContent {
+                            Button("Pair…") { link.pair(with: mac) }
+                        } label: {
+                            Label(mac.name, systemImage: "laptopcomputer")
+                        }
+                    }
+                } header: {
+                    Text("Nearby")
+                } footer: {
+                    Text("Both Macs show a code. Pair only if the codes match.")
+                }
+
+                Section {
+                    Toggle("Use this keyboard and mouse on the Mac you look at", isOn: $model.forwardsInput)
+                    Toggle("Let linked Macs’ keyboards and mice control this Mac", isOn: $model.acceptsInput)
+                    Toggle("Bring the clipboard along", isOn: $model.sharesClipboard)
+                } header: {
+                    Text("Keyboard and mouse")
+                } footer: {
+                    Text(
+                        "Each Mac needs Glazer following you with its camera, and calibrated, to know when you "
+                            + "look at it. The switch shortcut also moves to linked Macs after the last display.")
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .frame(height: 430)
+        .animation(.smooth(duration: 0.25), value: model.linkingEnabled)
+    }
+
+    @ViewBuilder
+    private func status(of peer: PeerIdentity) -> some View {
+        if link.target?.id == peer.id {
+            Label("You’re here", systemImage: "eye.fill")
+                .foregroundStyle(.tint)
+        } else if link.controlledBy?.id == peer.id {
+            Label("Controlling this Mac", systemImage: "keyboard")
+                .foregroundStyle(.secondary)
+        } else if link.linked[peer.id] != nil {
+            Label("Linked", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+        } else {
+            Text("Not nearby")
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
 // MARK: - Privacy
 
 private struct PrivacySettings: View {
@@ -411,7 +514,10 @@ private struct PrivacySettings: View {
             }
             Section("What Glazer never does") {
                 Fact(symbol: "record.circle", text: "Record, save or upload video or photos.")
-                Fact(symbol: "network.slash", text: "Connect to the internet. No analytics, no tracking, no updates.")
+                Fact(
+                    symbol: "network.slash",
+                    text: "Connect to the internet. No analytics, no tracking, no updates. Linked Macs talk only "
+                        + "on your local network, encrypted.")
                 Fact(symbol: "eye.slash", text: "Read window titles, or what's on your screen unless you grab it.")
             }
             Section {

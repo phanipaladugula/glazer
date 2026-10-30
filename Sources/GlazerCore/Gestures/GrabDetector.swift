@@ -107,6 +107,16 @@ public struct GrabDetector: Sendable {
         }
     }
 
+    /// Holds a grab made on a linked Mac, so this Mac's camera watches for the drop, from
+    /// `timestamp`. Ignored if this Mac is already holding one.
+    public mutating func adoptHold(at timestamp: TimeInterval) {
+        guard phase == .idle else { return }
+        phase = .holding
+        grabbedAt = timestamp
+        lastSeen = timestamp
+        openSince = nil
+    }
+
     /// Gives up a grab in progress, such as when gestures are turned off.
     public mutating func reset() {
         phase = .idle

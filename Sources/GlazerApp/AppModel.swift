@@ -132,6 +132,51 @@ final class AppModel {
         case needsScreenRecording
     }
 
+    // MARK: Linked Macs
+
+    /// Whether this Mac links with other Macs on the local network.
+    var linkingEnabled: Bool {
+        didSet {
+            preferences.linkingEnabled = linkingEnabled
+            refresh()
+        }
+    }
+
+    /// Whether this Mac's keyboard and mouse control a linked Mac the user faces.
+    var forwardsInput: Bool {
+        didSet {
+            preferences.forwardsInput = forwardsInput
+            link.forwardsInput = forwardsInput
+        }
+    }
+
+    /// Whether linked Macs' keyboards and mice may control this Mac.
+    var acceptsInput: Bool {
+        didSet {
+            preferences.acceptsInput = acceptsInput
+            link.acceptsInput = acceptsInput
+        }
+    }
+
+    /// Whether the clipboard moves with the keyboard and mouse.
+    var sharesClipboard: Bool {
+        didSet {
+            preferences.sharesClipboard = sharesClipboard
+            link.sharesClipboard = sharesClipboard
+        }
+    }
+
+    /// This Mac as linked Macs see it.
+    var linkIdentity: PeerIdentity {
+        PeerIdentity(id: preferences.linkDeviceID, name: Host.current().localizedName ?? "Mac")
+    }
+
+    /// Whether Glazer is useful with this many displays: two or more, or one with linking
+    /// on, since a linked Mac is somewhere else to switch to.
+    private var hasEnoughDisplays: Bool {
+        displays.count >= 2 || (linkingEnabled && !displays.isEmpty)
+    }
+
     /// Whether Glazer opens at login. Reads back what macOS actually did, so the switch
     /// never shows on when registering failed.
     var launchesAtLogin: Bool {
@@ -186,6 +231,7 @@ final class AppModel {
     let displayMonitor = DisplayMonitor()
     let gaze: GazeController
     let toggleShortcut = KeyboardShortcut.toggle
+    let link = LinkController()
 
     @ObservationIgnored private let preferences: Preferences
     @ObservationIgnored private let vault: FaceVault
@@ -217,12 +263,17 @@ final class AppModel {
         gesturesEnabled = preferences.gesturesEnabled
         handCalibration = preferences.handCalibration
         handAim = preferences.handAim
+        linkingEnabled = preferences.linkingEnabled
+        forwardsInput = preferences.forwardsInput
+        acceptsInput = preferences.acceptsInput
+        sharesClipboard = preferences.sharesClipboard
 
         // Only whether a template exists: that never makes macOS ask for the Keychain.
         faceLock = vault.hasTemplate ? .stored : .off
-        gaze.onGesture = { [weak self] gesture in self?.grabs.handle(gesture) }
+        gaze.onGesture = { [weak self] gesture in self?.handle(gesture) }
         grabs.onCaptured = { [weak self] in self?.hasScreenCaptureAccess = true }
         grabs.onNotAllowed = { [weak self] in self?.hasScreenCaptureAccess = false }
+        connectLink()
         registerToggleShortcut()
         observeDisplays()
         observeFacedDisplay()
@@ -259,7 +310,7 @@ final class AppModel {
         if !hasCompletedSetup || (usesCamera && cameraAccess == .notDetermined) { return .setupNeeded }
         if usesCamera, cameraAccess != .granted { return .cameraDenied }
         if usesCamera, gaze.cameraFailure != nil { return .cameraUnavailable }
-        if displays.count < 2 { return .secondDisplayNeeded }
+        if !hasEnoughDisplays { return .secondDisplayNeeded }
         if usesCamera, calibration?.covers(displays) != true { return .calibrationNeeded }
         if usesCamera, faceLock == .unreadable { return .faceLockUnavailable }
         if !hasAccessibilityAccess { return .accessibilityNeeded }
@@ -271,7 +322,7 @@ final class AppModel {
     /// ``SwitchingMethod/both`` the shortcut keeps working while the camera can't.
     private var shouldRegisterShortcut: Bool {
         isEnabled && hasCompletedSetup && switchingMethod.usesShortcut && hasAccessibilityAccess
-            && displays.count >= 2 && !isCalibrating && !isRecordingShortcut && session?.isActive != false
+            && hasEnoughDisplays && !isCalibrating && !isRecordingShortcut && session?.isActive != false
     }
 
     var displays: [Display] {
@@ -288,7 +339,7 @@ final class AppModel {
     }
 
     var canCalibrate: Bool {
-        displays.count >= 2 && cameraAccess == .granted && !isCalibrating && gaze.mode != .enrolling
+        hasEnoughDisplays && cameraAccess == .granted && !isCalibrating && gaze.mode != .enrolling
     }
 
     // MARK: Actions
@@ -326,6 +377,20 @@ final class AppModel {
     /// shortcut calls it.
     func switchToNextDisplay() {
         let current = gaze.focusedDisplay ?? displayMonitor.pointerDisplayID
+        // After the last display come the linked Macs, then back to this Mac.
+        if link.isRunning, !link.linked.isEmpty {
+            if link.isAway {
+                _ = link.chooseNext()
+                if link.isAway { return }
+                if let first = displays.inReadingOrder.first?.id {
+                    _ = focus.focus(first, leaving: current)
+                }
+                return
+            }
+            if current == displays.inReadingOrder.last?.id || displays.count < 2, link.chooseNext() {
+                return
+            }
+        }
         guard let target = displays.display(after: current)?.id else { return }
         if gaze.mode == .following {
             // The engine learns the user moved focus themselves, so it doesn't pull focus
@@ -487,6 +552,8 @@ final class AppModel {
         updateShortcut()
         gaze.clearCameraFailure()
 
+        updateLink()
+
         // Nobody is at the Mac: the screen is locked or asleep, or another user is in front.
         if session?.isActive == false {
             gaze.stop()
@@ -540,6 +607,61 @@ final class AppModel {
                 self.refresh()
                 self.observeDisplays()
             }
+        }
+    }
+
+    // MARK: Linking
+
+    private func connectLink() {
+        link.forwardsInput = forwardsInput
+        link.acceptsInput = acceptsInput
+        link.sharesClipboard = sharesClipboard
+        gaze.onFacingDistance = { [weak self] distance in self?.link.updatePresence(distance: distance) }
+        grabs.onHeld = { [weak self] in self?.link.screenshotHeld() }
+        link.onRemoteGrab = { [weak self] holding in
+            if holding { self?.gaze.adoptRemoteHold() } else { self?.gaze.releaseRemoteHold() }
+        }
+        link.deliverScreenshot = { [weak self] png in
+            guard let self else { return }
+            let display = gaze.focusedDisplay ?? displayMonitor.pointerDisplayID ?? CGMainDisplayID()
+            grabs.deliver(png: png, on: display)
+        }
+        link.takeHeldScreenshot = { [weak self] in await self?.grabs.takeHeld()?.png }
+        link.onForwardingChanged = { [weak self] peer in
+            guard let self else { return }
+            let display = gaze.focusedDisplay ?? displayMonitor.pointerDisplayID ?? CGMainDisplayID()
+            if let peer {
+                grabs.notify("Keyboard and mouse are on \(peer.name)", symbol: "keyboard", on: display)
+            } else {
+                grabs.notify("Keyboard and mouse are back on this Mac", symbol: "keyboard", on: display)
+            }
+        }
+    }
+
+    /// Runs linking while it's on and someone is at the Mac.
+    private func updateLink() {
+        if isEnabled, linkingEnabled, session?.isActive != false {
+            link.start(as: linkIdentity)
+        } else {
+            link.stop()
+        }
+    }
+
+    /// A hand gesture: a drop may belong to a linked Mac, from a grab there or to the Mac
+    /// the user is at.
+    private func handle(_ gesture: GazeController.Gesture) {
+        switch gesture {
+        case .dropped:
+            if link.isRunning, link.dropped(remoteHold: gaze.holdsRemoteGrab) {
+                return
+            }
+            grabs.handle(gesture)
+            link.screenshotReleased()
+        case .cancelled:
+            grabs.handle(gesture)
+            link.screenshotReleased()
+        case .grabbed:
+            grabs.handle(gesture)
         }
     }
 

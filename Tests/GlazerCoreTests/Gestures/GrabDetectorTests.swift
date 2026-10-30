@@ -191,6 +191,30 @@ struct GrabDetectorTests {
         #expect(run.events.count == 3)
     }
 
+    @Test("A grab adopted from a linked Mac drops when the hand opens here")
+    func adopted() {
+        var run = Run()
+        run.detector.adoptHold(at: 0)
+        #expect(run.detector.phase == .holding)
+
+        run.show(Hands.fist, for: 0.5)
+        run.show(Hands.open, for: 0.5)
+        guard case .dropped = run.events.last else {
+            Issue.record("Expected a drop, got \(run.events)")
+            return
+        }
+    }
+
+    @Test("Adopting while already holding changes nothing")
+    func adoptWhileHolding() {
+        var run = Run()
+        run.grab()
+        run.detector.adoptHold(at: 10)
+        run.show(Hands.fist, for: 15)
+
+        #expect(run.events.last == .cancelled)
+    }
+
     @Test("Reset gives up a grab")
     func reset() {
         var run = Run()

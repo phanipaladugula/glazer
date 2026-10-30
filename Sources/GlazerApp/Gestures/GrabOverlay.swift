@@ -77,10 +77,12 @@ final class GrabOverlay {
 
     /// Shows `text` in the top right of `visibleFrame` for a few seconds, such as why a
     /// grab didn't work.
-    func showMessage(_ text: String, on visibleFrame: CGRect) {
+    func showMessage(
+        _ text: String, symbol: String = "exclamationmark.triangle.fill", seconds: Double = 6, on visibleFrame: CGRect
+    ) {
         messageTask?.cancel()
         message?.orderOut(nil)
-        let host = NSHostingView(rootView: GestureMessage(text: text, width: Self.thumbnailWidth + 40))
+        let host = NSHostingView(rootView: GestureMessage(text: text, symbol: symbol, width: Self.thumbnailWidth + 40))
         let size = host.fittingSize
         let panel = Self.overlayWindow(frame: CGRect(origin: .zero, size: size))
         panel.contentView = host
@@ -88,7 +90,7 @@ final class GrabOverlay {
         panel.orderFrontRegardless()
         message = panel
         messageTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(6))
+            try? await Task.sleep(for: .seconds(seconds))
             guard !Task.isCancelled else { return }
             self?.message?.orderOut(nil)
             self?.message = nil
@@ -117,6 +119,7 @@ final class GrabOverlay {
 /// A short note about a gesture, such as why it didn't work.
 private struct GestureMessage: View {
     let text: String
+    let symbol: String
     let width: CGFloat
 
     var body: some View {
@@ -124,8 +127,8 @@ private struct GestureMessage: View {
             Text(text)
                 .fixedSize(horizontal: false, vertical: true)
         } icon: {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.yellow)
+            Image(systemName: symbol)
+                .foregroundStyle(symbol.hasPrefix("exclamationmark") ? AnyShapeStyle(.yellow) : AnyShapeStyle(.tint))
         }
         .font(.callout)
         .padding(14)

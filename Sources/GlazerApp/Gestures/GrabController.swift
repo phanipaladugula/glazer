@@ -24,6 +24,8 @@ final class GrabController {
     var onCaptured: (() -> Void)?
     /// Told when macOS refused the screenshot because Screen Recording isn't allowed.
     var onNotAllowed: (() -> Void)?
+    /// Told once a grabbed screenshot is ready, so linked Macs can be told it's held.
+    var onHeld: (() -> Void)?
     /// The screenshot being taken or held, from the grab until the drop or a cancel.
     private var held: Task<Screenshot?, Never>?
     /// The display the user faces now, where the held screenshot follows them.
@@ -92,6 +94,9 @@ final class GrabController {
                     overlay.showThumbnail(image, on: frame)
                 }
                 Logger.gestures.notice("Grabbed display \(display, privacy: .public)")
+                if held != nil {
+                    onHeld?()
+                }
                 return Screenshot(url: url, image: image, png: png, copied: copied)
             } catch {
                 Logger.gestures.error("Grab failed: \(String(describing: error), privacy: .public)")
@@ -122,37 +127,77 @@ final class GrabController {
         let droppedAt = ContinuousClock.now
         Task {
             guard let screenshot = await held.value else { return }
-            // Something else may have been copied since the grab.
-            if !ScreenshotStore.stillCopied(screenshot.copied) {
-                ScreenshotStore.copy(png: screenshot.png)
-            }
+            await place(screenshot, on: display, droppedAt: droppedAt)
+        }
+    }
 
-            let pointer = CGEvent(source: nil)?.location ?? .zero
-            let pointerDisplay = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }?
-                .displayID
-            if pointerDisplay == display, let target = await PasteTarget.find(at: pointer) {
-                await PasteTarget.paste(at: pointer)
-                let elapsed = ContinuousClock.now - droppedAt
-                let milliseconds = Int(elapsed / .milliseconds(1))
-                Logger.gestures.notice(
-                    "Pasted into \(target, privacy: .public) on display \(display, privacy: .public) \(milliseconds, privacy: .public) ms after the drop"
-                )
+    /// Gives up the held screenshot to be dropped on a linked Mac, and returns it once
+    /// it's ready; `nil` if none is held or it couldn't be taken.
+    func takeHeld() async -> Screenshot? {
+        guard let held else { return nil }
+        self.held = nil
+        stopPreparing()
+        overlay.hideThumbnail()
+        return await held.value
+    }
+
+    /// Drops a screenshot that came from a linked Mac on `display`: saves it with this
+    /// Mac's screenshots, copies it, then pastes or shows it as a local drop would.
+    func deliver(png: Data, on display: Display.ID) {
+        let droppedAt = ContinuousClock.now
+        Task {
+            guard let source = CGImageSourceCreateWithData(png as CFData, nil),
+                let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+            else {
+                Logger.gestures.error("A screenshot from a linked Mac couldn't be read")
                 return
             }
-            // The pointer isn't on a text box there, but the typing cursor may be: in the
-            // message box of the chat the user is looking at, say.
-            if let target = PasteTarget.focusedTextBox(in: CGDisplayBounds(display)) {
-                PasteTarget.pasteAtFocus()
-                Logger.gestures.notice(
-                    "Pasted into focused \(target, privacy: .public) on display \(display, privacy: .public)")
-                return
+            do {
+                let url = try await Task.detached(priority: .userInitiated) {
+                    try ScreenshotStore.save(png: png)
+                }.value
+                let copied = ScreenshotStore.copy(png: png)
+                await place(
+                    Screenshot(url: url, image: image, png: png, copied: copied), on: display, droppedAt: droppedAt)
+            } catch {
+                Logger.gestures.error("A screenshot from a linked Mac couldn't be saved: \(error, privacy: .public)")
             }
-            let pointerName = pointerDisplay.map { String($0) } ?? "none"
+        }
+    }
+
+    /// Pastes `screenshot` where the pointer or the typing cursor is on `display`, or
+    /// shows it there.
+    private func place(_ screenshot: Screenshot, on display: Display.ID, droppedAt: ContinuousClock.Instant) async {
+        // Something else may have been copied since the grab.
+        if !ScreenshotStore.stillCopied(screenshot.copied) {
+            ScreenshotStore.copy(png: screenshot.png)
+        }
+
+        let pointer = CGEvent(source: nil)?.location ?? .zero
+        let pointerDisplay = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }?
+            .displayID
+        if pointerDisplay == display, let target = await PasteTarget.find(at: pointer) {
+            await PasteTarget.paste(at: pointer)
+            let elapsed = ContinuousClock.now - droppedAt
+            let milliseconds = Int(elapsed / .milliseconds(1))
             Logger.gestures.notice(
-                "Showing on display \(display, privacy: .public); pointer on \(pointerName, privacy: .public)")
-            if let screen = screen(of: display) ?? NSScreen.main {
-                windows.show(screenshot.image, file: screenshot.url, on: screen)
-            }
+                "Pasted into \(target, privacy: .public) on display \(display, privacy: .public) \(milliseconds, privacy: .public) ms after the drop"
+            )
+            return
+        }
+        // The pointer isn't on a text box there, but the typing cursor may be: in the
+        // message box of the chat the user is looking at, say.
+        if let target = PasteTarget.focusedTextBox(in: CGDisplayBounds(display)) {
+            PasteTarget.pasteAtFocus()
+            Logger.gestures.notice(
+                "Pasted into focused \(target, privacy: .public) on display \(display, privacy: .public)")
+            return
+        }
+        let pointerName = pointerDisplay.map { String($0) } ?? "none"
+        Logger.gestures.notice(
+            "Showing on display \(display, privacy: .public); pointer on \(pointerName, privacy: .public)")
+        if let screen = screen(of: display) ?? NSScreen.main {
+            windows.show(screenshot.image, file: screenshot.url, on: screen)
         }
     }
 
@@ -163,6 +208,12 @@ final class GrabController {
         held = nil
         stopPreparing()
         overlay.hideThumbnail()
+    }
+
+    /// Shows a short note in the corner of `display`, such as where the keyboard went.
+    func notify(_ text: String, symbol: String, on display: Display.ID) {
+        guard let frame = frame(of: display) ?? NSScreen.main?.visibleFrame else { return }
+        overlay.showMessage(text, symbol: symbol, seconds: 2.5, on: frame)
     }
 
     private func screen(of display: Display.ID) -> NSScreen? {

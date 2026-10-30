@@ -29,6 +29,8 @@ public final class InputForwarder {
     private var keysDown: Set<Int64> = []
     private var buttonsDown = 0
     private var lastKey = Date.distantPast
+    /// Where the pointer is held while forwarding.
+    private var anchor: CGPoint?
 
     public init() {}
 
@@ -87,10 +89,14 @@ public final class InputForwarder {
     }
 
     /// Starts or stops forwarding. While forwarding, the pointer here stays still.
+    ///
+    /// It's held by moving it back after each movement, not by detaching the mouse from the
+    /// pointer, which would outlive Glazer if it quit unexpectedly and leave the pointer
+    /// stuck.
     public func setForwarding(_ forwarding: Bool) {
         guard forwarding != isForwarding else { return }
         isForwarding = forwarding
-        CGAssociateMouseAndMouseCursorPosition(forwarding ? 0 : 1)
+        anchor = forwarding ? CGEvent(source: nil)?.location : nil
     }
 
     /// Whether `event` acts here; if not, it's been forwarded.
@@ -112,6 +118,9 @@ public final class InputForwarder {
             return true
         }
         onEvent?(input)
+        if case .move = input, let anchor {
+            CGWarpMouseCursorPosition(anchor)
+        }
         return false
     }
 

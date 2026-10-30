@@ -62,6 +62,9 @@ final class GazeController {
 
     /// Told about each hand gesture while following.
     @ObservationIgnored var onGesture: ((Gesture) -> Void)?
+    /// Told, on every frame while following, how far the user's head is from this Mac's
+    /// nearest display, for linked Macs; `nil` when nobody is followed or the camera stops.
+    @ObservationIgnored var onFacingDistance: ((Double?) -> Void)?
 
     @ObservationIgnored let camera = CameraFeed()
     @ObservationIgnored private let focus: FocusController
@@ -188,6 +191,26 @@ final class GazeController {
         updateWantsHands()
     }
 
+    /// Holds a grab made on a linked Mac, so this Mac's camera watches for the drop.
+    func adoptRemoteHold() {
+        guard grab?.phase == .idle else { return }
+        // Frames are timed by the host clock, which is the system's uptime.
+        grab?.adoptHold(at: ProcessInfo.processInfo.systemUptime)
+        holdsRemoteGrab = true
+    }
+
+    /// The linked Mac's grab ended: stop watching for its drop.
+    func releaseRemoteHold() {
+        guard holdsRemoteGrab else { return }
+        holdsRemoteGrab = false
+        if grab?.phase == .holding {
+            grab?.reset()
+        }
+    }
+
+    /// Whether the grab held here was made on a linked Mac.
+    @ObservationIgnored private(set) var holdsRemoteGrab = false
+
     private func updateWantsHands() {
         camera.setWantsHands(mode == .calibratingHands || (mode == .following && grab != nil))
     }
@@ -201,6 +224,7 @@ final class GazeController {
             onGesture?(.cancelled)
         }
         grab?.reset()
+        onFacingDistance?(nil)
         faced.removeAll()
         aimed.removeAll()
         userFace = nil
@@ -287,6 +311,9 @@ final class GazeController {
             camera.setWantsSignatures(mode == .enrolling || engine.needsSignatures(at: frame.timestamp + 0.1))
         }
 
+        if mode == .following {
+            onFacingDistance?(output?.facingDistance)
+        }
         if mode == .following, let output {
             followPointer(output)
             moveFocus(output)
@@ -331,6 +358,9 @@ final class GazeController {
         let event = grab?.update(userHand, at: frame.timestamp)
         logHeldHand(in: frame, face: output.userFace != nil)
         guard let event else { return }
+        defer {
+            if grab?.phase != .holding { holdsRemoteGrab = false }
+        }
 
         let gesture: Gesture? =
             switch event {
