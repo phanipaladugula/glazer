@@ -24,6 +24,11 @@ public final class Preferences {
         static let gesturesEnabled = "gesturesEnabled"
         static let handCalibration = "handCalibration"
         static let handAim = "handAim"
+        static let linkingEnabled = "linkingEnabled"
+        static let linkDeviceID = "linkDeviceID"
+        static let forwardsInput = "forwardsInput"
+        static let acceptsInput = "acceptsInput"
+        static let sharesClipboard = "sharesClipboard"
     }
 
     /// The range offered for ``switchDelay``, in seconds.
@@ -119,5 +124,42 @@ public final class Preferences {
         set {
             store.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: Key.handAim)
         }
+    }
+
+    // MARK: Linked Macs
+
+    /// Whether this Mac links with other Macs on the local network. Off until the user
+    /// turns it on.
+    public var linkingEnabled: Bool {
+        get { store.object(forKey: Key.linkingEnabled) as? Bool ?? false }
+        set { store.set(newValue, forKey: Key.linkingEnabled) }
+    }
+
+    /// This Mac's ID among linked Macs: random, made the first time it's needed.
+    public var linkDeviceID: String {
+        if let id = store.object(forKey: Key.linkDeviceID) as? String, !id.isEmpty {
+            return id
+        }
+        let id = UUID().uuidString
+        store.set(id, forKey: Key.linkDeviceID)
+        return id
+    }
+
+    /// Whether this Mac's keyboard and mouse control a linked Mac the user faces.
+    public var forwardsInput: Bool {
+        get { store.object(forKey: Key.forwardsInput) as? Bool ?? true }
+        set { store.set(newValue, forKey: Key.forwardsInput) }
+    }
+
+    /// Whether linked Macs' keyboards and mice may control this Mac.
+    public var acceptsInput: Bool {
+        get { store.object(forKey: Key.acceptsInput) as? Bool ?? true }
+        set { store.set(newValue, forKey: Key.acceptsInput) }
+    }
+
+    /// Whether the clipboard moves with the keyboard and mouse between linked Macs.
+    public var sharesClipboard: Bool {
+        get { store.object(forKey: Key.sharesClipboard) as? Bool ?? true }
+        set { store.set(newValue, forKey: Key.sharesClipboard) }
     }
 }

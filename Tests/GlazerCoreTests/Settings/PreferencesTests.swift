@@ -96,3 +96,37 @@ struct GesturePreferencesTests {
         #expect(Preferences(store: store).handAim == aim)
     }
 }
+
+@Suite("Preferences, linked Macs")
+struct LinkPreferencesTests {
+    @Test("Linking starts off; control and the clipboard start on")
+    func defaults() {
+        let preferences = Preferences(store: MemoryStore())
+
+        #expect(!preferences.linkingEnabled)
+        #expect(preferences.forwardsInput && preferences.acceptsInput && preferences.sharesClipboard)
+    }
+
+    @Test("The device ID is made once and kept")
+    func deviceID() {
+        let store = MemoryStore()
+        let id = Preferences(store: store).linkDeviceID
+
+        #expect(!id.isEmpty)
+        #expect(Preferences(store: store).linkDeviceID == id)
+    }
+
+    @Test("Link settings persist")
+    func persists() {
+        let store = MemoryStore()
+        let preferences = Preferences(store: store)
+        preferences.linkingEnabled = true
+        preferences.forwardsInput = false
+        preferences.acceptsInput = false
+        preferences.sharesClipboard = false
+
+        let reloaded = Preferences(store: store)
+        #expect(reloaded.linkingEnabled)
+        #expect(!reloaded.forwardsInput && !reloaded.acceptsInput && !reloaded.sharesClipboard)
+    }
+}

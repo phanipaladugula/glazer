@@ -37,6 +37,10 @@ public struct DisplayClassifier: Sendable {
     /// The display nearest the latest pose, without waiting for the dwell: the display the
     /// user is facing right now. `nil` when they face none of them.
     public private(set) var nearest: Display.ID?
+    /// How far, in degrees, the latest pose is from the nearest display's region: 0 when
+    /// facing a display. Unlike ``nearest``, it's set however far away the user looks, so
+    /// it can tell whether they face this Mac at all.
+    public private(set) var nearestDistance: Double?
 
     public init(calibration: Calibration, configuration: Configuration = Configuration()) {
         self.calibration = calibration
@@ -57,8 +61,9 @@ public struct DisplayClassifier: Sendable {
                 centre: pose.distance(to: $0.centre, weights: weights)
             )
         }
-        guard let nearest = distances.min(by: { ($0.distance, $0.centre) < ($1.distance, $1.centre) }),
-            nearest.distance <= configuration.maximumDistance
+        let closest = distances.min(by: { ($0.distance, $0.centre) < ($1.distance, $1.centre) })
+        nearestDistance = closest?.distance
+        guard let nearest = closest, nearest.distance <= configuration.maximumDistance
         else {
             candidate = nil
             self.nearest = nil

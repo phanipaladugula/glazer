@@ -45,6 +45,17 @@ struct GazeEngineTests {
         #expect(empty.userFace == nil)
     }
 
+    @Test("How far the user's head is from the nearest display is reported, however far")
+    func facingDistance() {
+        var engine = GazeEngine(calibration: twoDisplayCalibration)
+        let atMonitor = run(&engine, from: 0, seconds: 1, yaw: 28, pitch: 2)
+        let farAway = run(&engine, from: 1, seconds: 1, yaw: 90, pitch: 0)
+
+        #expect(atMonitor.last?.facingDistance.map { $0 < 2 } == true)
+        #expect(farAway.last?.facingDistance.map { $0 > 30 } == true)
+        #expect(engine.process(frame(at: 3)).facingDistance == nil)
+    }
+
     @Test("The nearest face is the biggest")
     func nearestFace() {
         let small = face(x: 0.2, size: 0.1)

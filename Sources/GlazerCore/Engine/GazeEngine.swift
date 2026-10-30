@@ -36,6 +36,9 @@ public struct GazeEngine: Sendable {
         /// Where the user's face is in this frame, in normalised image coordinates, when
         /// it was found.
         public var userFace: CGRect? = nil
+        /// How far, in degrees, the user's head is from the nearest display's region, while
+        /// they're followed: 0 when facing one. See ``Presence``.
+        public var facingDistance: Double? = nil
     }
 
     public private(set) var tracker: UserTracker
@@ -113,7 +116,8 @@ public struct GazeEngine: Sendable {
             focusedDisplay: focused,
             facingDisplay: status == .following ? classifier?.nearest : nil,
             switchedTo: focused != previousFocus ? focused : nil,
-            userFace: userFace
+            userFace: userFace,
+            facingDistance: status == .following ? classifier?.nearestDistance : nil
         )
     }
 
